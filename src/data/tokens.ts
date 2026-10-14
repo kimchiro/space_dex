@@ -11,6 +11,8 @@ export type Token = {
   image?: string;
   rank?: number;
   sparkline?: number[];
+  high24h?: number;
+  low24h?: number;
 };
 
 /** 코인게코 API를 쓸 수 없을 때 사용하는 목업 시세 */

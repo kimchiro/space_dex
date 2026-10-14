@@ -10,7 +10,7 @@ import { useMarket } from "@/components/providers/MarketProvider";
 import TokenIcon from "@/components/common/TokenIcon";
 import ChangeText from "@/components/common/ChangeText";
 import PriceChart from "./PriceChart";
-import OrderBook from "./OrderBook";
+import MarketDepth from "./MarketDepth";
 import SwapPanel from "./SwapPanel";
 import CoinInfo from "./CoinInfo";
 import NewsList from "./NewsList";
@@ -64,15 +64,15 @@ export default function TradeView({ token: initialToken }: { token: Token }) {
                 </Stat>
                 <Stat>
                   <dt>24h 최고</dt>
-                  <dd>{formatPrice(token.price * 1.031)}</dd>
+                  <dd>{formatPrice(token.high24h ?? token.price * 1.031)}</dd>
                 </Stat>
                 <Stat>
                   <dt>24h 최저</dt>
-                  <dd>{formatPrice(token.price * 0.972)}</dd>
+                  <dd>{formatPrice(token.low24h ?? token.price * 0.972)}</dd>
                 </Stat>
               </Stats>
               <PriceChart token={token} />
-              <OrderBook token={token} />
+              <MarketDepth token={token} />
             </ChartTab>
           )}
           {tab === "info" && <CoinInfo token={token} />}
@@ -88,6 +88,7 @@ export default function TradeView({ token: initialToken }: { token: Token }) {
 
 const TokenHeader = styled.div`
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 16px;
   margin-bottom: 20px;
@@ -139,7 +140,8 @@ const WatchButton = styled.button<{ $active: boolean }>`
 
 const Stats = styled.dl`
   display: flex;
-  gap: 32px;
+  flex-wrap: wrap;
+  gap: 12px 32px;
   padding: 16px 20px;
   border-radius: ${({ theme }) => theme.radius.md};
   background: ${({ theme }) => theme.colors.bgSub};
@@ -163,6 +165,10 @@ const Grid = styled.div`
   grid-template-columns: minmax(0, 1fr) 320px;
   gap: 16px;
   align-items: start;
+
+  @container main (max-width: 800px) {
+    grid-template-columns: minmax(0, 1fr);
+  }
 `;
 
 const ContentColumn = styled.div`
@@ -178,4 +184,8 @@ const ChartTab = styled.div`
 const OrderColumn = styled.div`
   position: sticky;
   top: calc(${({ theme }) => theme.layout.headerHeight} + 24px);
+
+  @container main (max-width: 800px) {
+    position: static;
+  }
 `;

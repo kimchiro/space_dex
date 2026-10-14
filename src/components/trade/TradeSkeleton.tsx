@@ -30,4 +30,8 @@ const Grid = styled.div`
   display: grid;
   grid-template-columns: minmax(0, 1fr) 320px;
   gap: 16px;
+
+  @container main (max-width: 800px) {
+    grid-template-columns: minmax(0, 1fr);
+  }
 `;

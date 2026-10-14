@@ -149,6 +149,11 @@ const Fields = styled.div`
   padding: 16px 0;
   border-top: 1px solid ${({ theme }) => theme.colors.border};
   border-bottom: 1px solid ${({ theme }) => theme.colors.border};
+
+  @container main (max-width: 640px) {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 8px;
+  }
 `;
 
 const FieldColumn = styled.dl`
@@ -164,6 +169,14 @@ const FieldColumn = styled.dl`
 
   &:first-child {
     padding-left: 0;
+  }
+
+  @container main (max-width: 640px) {
+    padding: 0;
+
+    & + & {
+      border-left: none;
+    }
   }
 `;
 
@@ -210,10 +223,21 @@ const HolderBody = styled.div`
   align-items: center;
   gap: 40px;
   margin-top: 16px;
+
+  @container main (max-width: 640px) {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 16px;
+
+    svg {
+      align-self: center;
+    }
+  }
 `;
 
 const HolderList = styled.ul`
   flex: 1;
+  min-width: 0;
   border-top: 1px solid ${({ theme }) => theme.colors.border};
 `;
 

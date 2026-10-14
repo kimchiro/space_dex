@@ -34,6 +34,7 @@ const Body = styled.div`
 `;
 
 const Main = styled.main`
+  container: main / inline-size;
   flex: 1;
   min-width: 0;
 `;

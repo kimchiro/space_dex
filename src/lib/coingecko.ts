@@ -18,6 +18,8 @@ type CoinGeckoMarket = {
   market_cap_rank: number | null;
   total_volume: number | null;
   price_change_percentage_24h: number | null;
+  high_24h: number | null;
+  low_24h: number | null;
   sparkline_in_7d?: { price: number[] };
 };
 
@@ -72,6 +74,8 @@ function toTokens(markets: CoinGeckoMarket[]): Token[] {
       change24h: m.price_change_percentage_24h ?? 0,
       volume24h: m.total_volume ?? 0,
       marketCap: m.market_cap ?? 0,
+      high24h: m.high_24h ?? undefined,
+      low24h: m.low_24h ?? undefined,
       color: colorFor(symbol),
       sparkline: m.sparkline_in_7d?.price.length
         ? downsample(m.sparkline_in_7d.price, SPARKLINE_POINTS)
