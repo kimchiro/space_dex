@@ -21,28 +21,30 @@ export default function Header() {
   return (
     <Wrapper>
       <Inner>
-        <Left>
-          <Logo href="/">
-            <LogoMark>S</LogoMark>
-            <span>Space DEX</span>
-          </Logo>
-          <Nav>
-            {navItems.map((item) => (
-              <NavLink key={item.href} href={item.href} $active={item.match(pathname)}>
-                {item.label}
-              </NavLink>
-            ))}
-          </Nav>
-        </Left>
+        <MainArea>
+          <Left>
+            <Logo href="/">
+              <LogoMark>S</LogoMark>
+              <span>Space DEX</span>
+            </Logo>
+            <Nav>
+              {navItems.map((item) => (
+                <NavLink key={item.href} href={item.href} $active={item.match(pathname)}>
+                  {item.label}
+                </NavLink>
+              ))}
+            </Nav>
+          </Left>
 
-        <Search>
-          <SearchIcon viewBox="0 0 24 24" aria-hidden>
-            <circle cx="11" cy="11" r="7" />
-            <path d="M20 20l-3.5-3.5" />
-          </SearchIcon>
-          <input placeholder="토큰 이름, 심볼, 컨트랙트 주소 검색" />
-          <Kbd>⌘K</Kbd>
-        </Search>
+          <Search>
+            <SearchIcon viewBox="0 0 24 24" aria-hidden>
+              <circle cx="11" cy="11" r="7" />
+              <path d="M20 20l-3.5-3.5" />
+            </SearchIcon>
+            <input placeholder="토큰 이름, 심볼, 컨트랙트 주소 검색" />
+            <Kbd>⌘K</Kbd>
+          </Search>
+        </MainArea>
 
         <Right>
           <ChainSelector>
@@ -89,12 +91,20 @@ const Wrapper = styled.header`
 const Inner = styled.div`
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: 24px;
   height: 100%;
   max-width: ${({ theme }) => theme.layout.maxWidth};
   margin: 0 auto;
   padding: 0 24px;
+`;
+
+const MainArea = styled.div`
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  min-width: 0;
 `;
 
 const Left = styled.div`
@@ -195,8 +205,15 @@ const Kbd = styled.span`
 
 const Right = styled.div`
   display: flex;
+  flex-shrink: 0;
   align-items: center;
+  justify-content: flex-end;
   gap: 8px;
+  width: ${({ theme }) => theme.layout.sidebarWidth};
+
+  @media (max-width: 1100px) {
+    width: auto;
+  }
 `;
 
 const ChainSelector = styled.div`
