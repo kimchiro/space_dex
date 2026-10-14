@@ -3,10 +3,11 @@
 import Link from "next/link";
 import { useState } from "react";
 import styled from "styled-components";
+import { pinnedNotice } from "@/data/notices";
 
 const notice = {
-  label: "공지",
-  message: "10월 20일(화) 02:00~04:00 스마트 컨트랙트 업그레이드로 스왑 및 유동성 공급이 일시 중단돼요.",
+  label: pinnedNotice.category,
+  message: pinnedNotice.title,
   href: "/",
 };
 

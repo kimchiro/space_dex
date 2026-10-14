@@ -1,18 +1,25 @@
 "use client";
 
 import styled from "styled-components";
+import type { CryptoNews } from "@/lib/news";
 import Header from "./Header";
 import RightSidebar from "./RightSidebar";
 import NoticeBanner from "./NoticeBanner";
 
-export default function AppShell({ children }: { children: React.ReactNode }) {
+export default function AppShell({
+  news,
+  children,
+}: {
+  news: CryptoNews[];
+  children: React.ReactNode;
+}) {
   return (
     <>
       <Header />
       <NoticeBanner />
       <Body>
         <Main>{children}</Main>
-        <RightSidebar />
+        <RightSidebar news={news} />
       </Body>
     </>
   );

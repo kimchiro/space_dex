@@ -10,6 +10,8 @@ import { useRecentViewed } from "@/lib/recentViewed";
 import { useWatchlist } from "@/components/providers/WatchlistProvider";
 import TokenIcon from "@/components/common/TokenIcon";
 import ChangeText from "@/components/common/ChangeText";
+import type { CryptoNews } from "@/lib/news";
+import SidebarFeed from "./SidebarFeed";
 
 const tabs = [
   { key: "watch", label: "관심" },
@@ -25,7 +27,7 @@ const emptyMessages: Record<TabKey, string> = {
   hot: "",
 };
 
-export default function RightSidebar() {
+export default function RightSidebar({ news }: { news: CryptoNews[] }) {
   const [tab, setTab] = useState<TabKey>("watch");
   const { watchlist } = useWatchlist();
   const recent = useRecentViewed();
@@ -72,6 +74,8 @@ export default function RightSidebar() {
         <WalletDesc>내 자산과 거래 내역을 한눈에 확인하세요</WalletDesc>
         <WalletButton>지갑 연결하기</WalletButton>
       </WalletCard>
+
+      <SidebarFeed initialNews={news} />
     </Aside>
   );
 }
@@ -85,6 +89,9 @@ const Aside = styled.aside`
   width: ${({ theme }) => theme.layout.sidebarWidth};
   flex-shrink: 0;
   align-self: flex-start;
+  max-height: calc(100vh - ${({ theme }) => theme.layout.headerHeight} - 48px);
+  overflow-y: auto;
+  scrollbar-width: thin;
   padding: 16px;
   border-radius: ${({ theme }) => theme.radius.lg};
   border: 1px solid ${({ theme }) => theme.colors.border};

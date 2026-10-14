@@ -3,6 +3,7 @@ import StyledComponentsRegistry from "@/lib/registry";
 import Providers from "@/components/providers/Providers";
 import AppShell from "@/components/layout/AppShell";
 import { getMarketTokens } from "@/lib/coingecko";
+import { getCryptoNews } from "@/lib/news";
 
 export const metadata: Metadata = {
   title: "Space DEX",
@@ -10,7 +11,7 @@ export const metadata: Metadata = {
 };
 
 export default async function RootLayout({ children }: LayoutProps<"/">) {
-  const tokens = await getMarketTokens();
+  const [tokens, news] = await Promise.all([getMarketTokens(), getCryptoNews()]);
 
   return (
     <html lang="ko">
@@ -23,7 +24,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
       <body>
         <StyledComponentsRegistry>
           <Providers initialTokens={tokens}>
-            <AppShell>{children}</AppShell>
+            <AppShell news={news}>{children}</AppShell>
           </Providers>
         </StyledComponentsRegistry>
       </body>
