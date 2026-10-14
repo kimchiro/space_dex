@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import styled from "styled-components";
 import type { Token } from "@/data/tokens";
 import { formatCompact, formatPrice } from "@/lib/format";
@@ -9,8 +10,12 @@ import ChangeText from "@/components/common/ChangeText";
 import PriceChart from "./PriceChart";
 import OrderBook from "./OrderBook";
 import SwapPanel from "./SwapPanel";
+import CoinInfo from "./CoinInfo";
+import NewsList from "./NewsList";
+import DetailTabs, { type DetailTabKey } from "./DetailTabs";
 
 export default function TradeView({ token }: { token: Token }) {
+  const [tab, setTab] = useState<DetailTabKey>("chart");
   const { isWatched, toggle } = useWatchlist();
   const watched = isWatched(token.symbol);
 
@@ -36,32 +41,37 @@ export default function TradeView({ token }: { token: Token }) {
         </WatchButton>
       </TokenHeader>
 
-      <Stats>
-        <Stat>
-          <dt>24h 거래대금</dt>
-          <dd>{formatCompact(token.volume24h)}</dd>
-        </Stat>
-        <Stat>
-          <dt>시가총액</dt>
-          <dd>{formatCompact(token.marketCap)}</dd>
-        </Stat>
-        <Stat>
-          <dt>24h 최고</dt>
-          <dd>{formatPrice(token.price * 1.031)}</dd>
-        </Stat>
-        <Stat>
-          <dt>24h 최저</dt>
-          <dd>{formatPrice(token.price * 0.972)}</dd>
-        </Stat>
-      </Stats>
+      <DetailTabs value={tab} onChange={setTab} />
 
       <Grid>
-        <ChartColumn>
-          <PriceChart token={token} />
-        </ChartColumn>
-        <BookColumn>
-          <OrderBook token={token} />
-        </BookColumn>
+        <ContentColumn>
+          {tab === "chart" && (
+            <ChartTab>
+              <Stats>
+                <Stat>
+                  <dt>24h 거래대금</dt>
+                  <dd>{formatCompact(token.volume24h)}</dd>
+                </Stat>
+                <Stat>
+                  <dt>시가총액</dt>
+                  <dd>{formatCompact(token.marketCap)}</dd>
+                </Stat>
+                <Stat>
+                  <dt>24h 최고</dt>
+                  <dd>{formatPrice(token.price * 1.031)}</dd>
+                </Stat>
+                <Stat>
+                  <dt>24h 최저</dt>
+                  <dd>{formatPrice(token.price * 0.972)}</dd>
+                </Stat>
+              </Stats>
+              <PriceChart token={token} />
+              <OrderBook token={token} />
+            </ChartTab>
+          )}
+          {tab === "info" && <CoinInfo token={token} />}
+          {tab === "news" && <NewsList token={token} />}
+        </ContentColumn>
         <OrderColumn>
           <SwapPanel token={token} />
         </OrderColumn>
@@ -124,7 +134,6 @@ const WatchButton = styled.button<{ $active: boolean }>`
 const Stats = styled.dl`
   display: flex;
   gap: 32px;
-  margin-bottom: 20px;
   padding: 16px 20px;
   border-radius: ${({ theme }) => theme.radius.md};
   background: ${({ theme }) => theme.colors.bgSub};
@@ -146,23 +155,21 @@ const Stat = styled.div`
 const Grid = styled.div`
   display: grid;
   grid-template-columns: minmax(0, 1fr) 320px;
-  grid-template-areas:
-    "chart order"
-    "book order";
   gap: 16px;
   align-items: start;
 `;
 
-const ChartColumn = styled.div`
-  grid-area: chart;
+const ContentColumn = styled.div`
+  min-width: 0;
 `;
 
-const BookColumn = styled.div`
-  grid-area: book;
+const ChartTab = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
 `;
 
 const OrderColumn = styled.div`
-  grid-area: order;
   position: sticky;
   top: calc(${({ theme }) => theme.layout.headerHeight} + 24px);
 `;
