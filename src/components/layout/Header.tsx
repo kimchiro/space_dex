@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { useState } from "react";
 import styled from "styled-components";
 import { chains } from "@/data/tokens";
+import HeaderSearch from "./HeaderSearch";
 
 const navItems = [
   { href: "/", label: "홈", match: (p: string) => p === "/" },
@@ -36,14 +37,7 @@ export default function Header() {
             </Nav>
           </Left>
 
-          <Search>
-            <SearchIcon viewBox="0 0 24 24" aria-hidden>
-              <circle cx="11" cy="11" r="7" />
-              <path d="M20 20l-3.5-3.5" />
-            </SearchIcon>
-            <input placeholder="토큰 이름, 심볼, 컨트랙트 주소 검색" />
-            <Kbd>⌘K</Kbd>
-          </Search>
+          <HeaderSearch />
         </MainArea>
 
         <Right>
@@ -157,50 +151,6 @@ const NavLink = styled(Link)<{ $active: boolean }>`
     background: ${({ theme }) => theme.colors.surface};
     color: ${({ theme }) => theme.colors.text};
   }
-`;
-
-const Search = styled.label`
-  display: flex;
-  flex: 1;
-  align-items: center;
-  gap: 8px;
-  max-width: 420px;
-  height: 40px;
-  padding: 0 12px;
-  border-radius: ${({ theme }) => theme.radius.md};
-  background: ${({ theme }) => theme.colors.surface};
-  color: ${({ theme }) => theme.colors.textWeak};
-  cursor: text;
-
-  @media (max-width: 1024px) {
-    display: none;
-  }
-
-  input {
-    flex: 1;
-    font-size: 14px;
-    color: ${({ theme }) => theme.colors.text};
-
-    &::placeholder {
-      color: ${({ theme }) => theme.colors.textWeak};
-    }
-  }
-`;
-
-const SearchIcon = styled.svg`
-  width: 18px;
-  height: 18px;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 2;
-  stroke-linecap: round;
-`;
-
-const Kbd = styled.span`
-  padding: 2px 6px;
-  border-radius: 6px;
-  background: ${({ theme }) => theme.colors.bg};
-  font-size: 12px;
 `;
 
 const Right = styled.div`
