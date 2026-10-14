@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import styled from "styled-components";
 import { generateOrderBook, type Token } from "@/data/tokens";
-import type { DepthLevel, MarketDepth as MarketDepthData } from "@/lib/binance";
+import type { DepthLevel, MarketDepth as MarketDepthData, MarketDepthResult } from "@/lib/binance";
 import { formatAmount, formatPrice } from "@/lib/format";
 import ChangeText from "@/components/common/ChangeText";
 
@@ -29,19 +29,28 @@ function useMarketDepth(symbol: string) {
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
 
+    const markUnavailable = () =>
+      setState((prev) => (prev?.symbol === symbol && prev.status === "live" ? prev : { symbol, status: "unavailable" }));
+
     const load = async () => {
       let next = LIVE_POLL_MS;
       try {
         const res = await fetch(`/api/depth?symbol=${encodeURIComponent(symbol)}`);
-        if (res.ok) {
-          const data: MarketDepthData = await res.json();
-          if (!cancelled) setState({ symbol, status: "live", data });
+        const result: MarketDepthResult = await res.json();
+        if (cancelled) return;
+        if (!result.supported) {
+          setState({ symbol, status: "unavailable" });
+          return;
+        }
+        if (result.depth) {
+          setState({ symbol, status: "live", data: result.depth });
         } else {
           next = RETRY_POLL_MS;
-          if (!cancelled) setState((prev) => (prev?.symbol === symbol && prev.status === "live" ? prev : { symbol, status: "unavailable" }));
+          markUnavailable();
         }
       } catch {
         next = RETRY_POLL_MS;
+        if (!cancelled) markUnavailable();
       }
       if (!cancelled) timer = setTimeout(load, next);
     };

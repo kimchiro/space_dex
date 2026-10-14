@@ -43,7 +43,7 @@ export default function PriceChart({ token }: { token: Token }) {
 
     fetch(`/api/chart?id=${encodeURIComponent(token.id)}&days=${range.days}`, { signal: controller.signal })
       .then((res) => (res.ok ? res.json() : Promise.reject(new Error(String(res.status)))))
-      .then((points: PricePoint[]) => setLoaded({ key, points }))
+      .then((points: PricePoint[] | null) => (points?.length ? setLoaded({ key, points }) : setFailedKey(key)))
       .catch(() => {
         if (!controller.signal.aborted) setFailedKey(key);
       });

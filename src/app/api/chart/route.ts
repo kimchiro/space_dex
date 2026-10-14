@@ -9,8 +9,6 @@ export async function GET(request: NextRequest) {
     return Response.json({ error: "id와 days(1, 7, 30, 90, 365)가 필요해요." }, { status: 400 });
   }
 
-  const points = await getPriceHistory(id, days);
-  if (!points) return Response.json({ error: "가격 히스토리를 불러오지 못했어요." }, { status: 502 });
-
-  return Response.json(points);
+  // 코인게코 호출 한도 등으로 데이터가 없으면 null을 돌려주고, 화면은 예시 데이터로 대체한다.
+  return Response.json(await getPriceHistory(id, days));
 }

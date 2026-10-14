@@ -21,9 +21,17 @@ export type MarketDepth = {
 type RawDepth = { asks: [string, string][]; bids: [string, string][] };
 type RawTrade = { id: number; price: string; qty: string; time: number; isBuyerMaker: boolean };
 
+export type MarketDepthResult = { supported: false } | { supported: true; depth: MarketDepth | null };
+
+class BinanceError extends Error {
+  constructor(public readonly status: number) {
+    super(`Binance responded ${status}`);
+  }
+}
+
 async function get<T>(path: string): Promise<T> {
   const res = await fetch(`${BASE_URL}${path}`, { cache: "no-store" });
-  if (!res.ok) throw new Error(`Binance responded ${res.status}`);
+  if (!res.ok) throw new BinanceError(res.status);
   return res.json() as Promise<T>;
 }
 
@@ -32,10 +40,13 @@ const toLevel = ([price, amount]: [string, string]): DepthLevel => ({
   amount: Number(amount),
 });
 
-/** 바이낸스 {심볼}/USDT 마켓의 호가와 최근 체결. 마켓이 없으면 null. */
-export async function getMarketDepth(symbol: string, depth = 5, tradeLimit = 30): Promise<MarketDepth | null> {
+/**
+ * 바이낸스 {심볼}/USDT 마켓의 호가와 최근 체결.
+ * 마켓이 없으면 supported: false, 일시적으로 실패하면 depth: null.
+ */
+export async function getMarketDepth(symbol: string, depth = 5, tradeLimit = 30): Promise<MarketDepthResult> {
   const base = symbol.toUpperCase();
-  if (base === QUOTE) return null;
+  if (base === QUOTE) return { supported: false };
   const pair = `${base}${QUOTE}`;
 
   try {
@@ -45,23 +56,28 @@ export async function getMarketDepth(symbol: string, depth = 5, tradeLimit = 30)
     ]);
 
     return {
-      pair: `${base}/${QUOTE}`,
-      asks: book.asks.map(toLevel),
-      bids: book.bids.map(toLevel),
-      trades: trades
-        .map((t) => ({
-          id: t.id,
-          price: Number(t.price),
-          amount: Number(t.qty),
-          time: t.time,
-          side: t.isBuyerMaker ? ("sell" as const) : ("buy" as const),
-        }))
-        .reverse(),
+      supported: true,
+      depth: {
+        pair: `${base}/${QUOTE}`,
+        asks: book.asks.map(toLevel),
+        bids: book.bids.map(toLevel),
+        trades: trades
+          .map((t) => ({
+            id: t.id,
+            price: Number(t.price),
+            amount: Number(t.qty),
+            time: t.time,
+            side: t.isBuyerMaker ? ("sell" as const) : ("buy" as const),
+          }))
+          .reverse(),
+      },
     };
   } catch (error) {
+    // 바이낸스는 없는 마켓에 400(Invalid symbol)을 돌려준다.
+    if (error instanceof BinanceError && error.status === 400) return { supported: false };
     console.warn(
       `[binance] ${pair} 호가/체결을 불러오지 못했습니다: ${error instanceof Error ? error.message : String(error)}`,
     );
-    return null;
+    return { supported: true, depth: null };
   }
 }
