@@ -76,7 +76,10 @@ export async function getCryptoNews(): Promise<CryptoNews[]> {
   );
 
   results.forEach((r, i) => {
-    if (r.status === "rejected") console.error(`[news] ${FEEDS[i].source} 피드를 불러오지 못했습니다.`, r.reason);
+    if (r.status === "rejected") {
+      const reason = r.reason instanceof Error ? r.reason.message : String(r.reason);
+      console.warn(`[news] ${FEEDS[i].source} 피드를 불러오지 못했습니다: ${reason}`);
+    }
   });
 
   if (news.length === 0) return lastSuccessfulNews ?? fallbackNews;

@@ -1,4 +1,5 @@
 import { cacheLife } from "next/cache";
+import { coingeckoFetch, describeError, getSnapshot, setSnapshot } from "./coingeckoFetch";
 
 export type PricePoint = [time: number, price: number];
 
@@ -13,8 +14,6 @@ function downsample(points: PricePoint[]) {
   return Array.from({ length: MAX_POINTS }, (_, i) => points[Math.round(i * step)]);
 }
 
-const lastSuccessful = new Map<string, PricePoint[]>();
-
 /** 코인게코 가격 히스토리. 1일 차트는 1분, 그 외는 1시간 단위로 갱신된다. */
 export async function getPriceHistory(coinId: string, days: ChartDays): Promise<PricePoint[] | null> {
   "use cache";
@@ -24,25 +23,17 @@ export async function getPriceHistory(coinId: string, days: ChartDays): Promise<
     cacheLife("hours");
   }
 
-  const key = `${coinId}:${days}`;
-  const headers: Record<string, string> = { accept: "application/json" };
-  if (process.env.COINGECKO_API_KEY) {
-    headers["x-cg-demo-api-key"] = process.env.COINGECKO_API_KEY;
-  }
-
+  const key = `chart:${coinId}:${days}`;
   try {
-    const res = await fetch(
-      `https://api.coingecko.com/api/v3/coins/${encodeURIComponent(coinId)}/market_chart?vs_currency=usd&days=${days}`,
-      { headers },
+    const { prices } = await coingeckoFetch<{ prices: PricePoint[] }>(
+      `/coins/${encodeURIComponent(coinId)}/market_chart?vs_currency=usd&days=${days}`,
     );
-    if (!res.ok) throw new Error(`CoinGecko responded ${res.status}`);
-    const { prices } = (await res.json()) as { prices: PricePoint[] };
     if (!prices?.length) throw new Error("empty price history");
     const points = downsample(prices);
-    lastSuccessful.set(key, points);
+    setSnapshot(key, points);
     return points;
   } catch (error) {
-    console.error(`[chart] ${key} 가격 히스토리를 불러오지 못했습니다.`, error);
-    return lastSuccessful.get(key) ?? null;
+    console.warn(`[chart] ${coinId} ${days}일 가격 히스토리를 불러오지 못했습니다: ${describeError(error)}`);
+    return getSnapshot<PricePoint[]>(key) ?? null;
   }
 }

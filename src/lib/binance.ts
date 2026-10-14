@@ -59,7 +59,9 @@ export async function getMarketDepth(symbol: string, depth = 5, tradeLimit = 30)
         .reverse(),
     };
   } catch (error) {
-    console.error(`[binance] ${pair} 호가/체결을 불러오지 못했습니다.`, error);
+    console.warn(
+      `[binance] ${pair} 호가/체결을 불러오지 못했습니다: ${error instanceof Error ? error.message : String(error)}`,
+    );
     return null;
   }
 }

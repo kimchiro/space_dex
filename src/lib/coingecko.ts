@@ -1,12 +1,12 @@
 import { cacheLife } from "next/cache";
 import { fallbackTokens, type Token } from "@/data/tokens";
+import { coingeckoFetch, describeError, getSnapshot, setSnapshot } from "./coingeckoFetch";
 
-const MARKETS_ENDPOINT = "https://api.coingecko.com/api/v3/coins/markets";
 const PER_PAGE = 100;
 const SPARKLINE_POINTS = 42;
 
 // 호출 제한(429) 등으로 실패하면 목업 대신 마지막 정상 응답을 돌려준다.
-let lastSuccessfulTokens: Token[] | null = null;
+const SNAPSHOT_KEY = "markets";
 
 type CoinGeckoMarket = {
   id: string;
@@ -101,23 +101,16 @@ export async function getMarketTokens(): Promise<Token[]> {
     locale: "ko",
   });
 
-  const headers: Record<string, string> = { accept: "application/json" };
-  if (process.env.COINGECKO_API_KEY) {
-    headers["x-cg-demo-api-key"] = process.env.COINGECKO_API_KEY;
-  }
-
   try {
-    const res = await fetch(`${MARKETS_ENDPOINT}?${params}`, { headers });
-    if (!res.ok) throw new Error(`CoinGecko responded ${res.status}`);
-    const tokens = toTokens((await res.json()) as CoinGeckoMarket[]);
+    const tokens = toTokens(await coingeckoFetch<CoinGeckoMarket[]>(`/coins/markets?${params}`));
     if (tokens.length === 0) throw new Error("CoinGecko returned no markets");
-    lastSuccessfulTokens = tokens;
+    setSnapshot(SNAPSHOT_KEY, tokens);
     return tokens;
   } catch (error) {
-    console.error(
-      `[coingecko] 시세를 불러오지 못해 ${lastSuccessfulTokens ? "마지막으로 받은 시세" : "목업 데이터"}를 사용합니다.`,
-      error,
+    const lastTokens = getSnapshot<Token[]>(SNAPSHOT_KEY);
+    console.warn(
+      `[coingecko] ${describeError(error)} → ${lastTokens ? "마지막으로 받은 시세" : "목업 데이터"}를 사용합니다.`,
     );
-    return lastSuccessfulTokens ?? fallbackTokens;
+    return lastTokens ?? fallbackTokens;
   }
 }
