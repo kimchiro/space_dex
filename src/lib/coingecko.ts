@@ -5,6 +5,9 @@ const MARKETS_ENDPOINT = "https://api.coingecko.com/api/v3/coins/markets";
 const PER_PAGE = 100;
 const SPARKLINE_POINTS = 42;
 
+// 호출 제한(429) 등으로 실패하면 목업 대신 마지막 정상 응답을 돌려준다.
+let lastSuccessfulTokens: Token[] | null = null;
+
 type CoinGeckoMarket = {
   id: string;
   symbol: string;
@@ -103,9 +106,14 @@ export async function getMarketTokens(): Promise<Token[]> {
     const res = await fetch(`${MARKETS_ENDPOINT}?${params}`, { headers });
     if (!res.ok) throw new Error(`CoinGecko responded ${res.status}`);
     const tokens = toTokens((await res.json()) as CoinGeckoMarket[]);
-    return tokens.length > 0 ? tokens : fallbackTokens;
+    if (tokens.length === 0) throw new Error("CoinGecko returned no markets");
+    lastSuccessfulTokens = tokens;
+    return tokens;
   } catch (error) {
-    console.error("[coingecko] 시세를 불러오지 못해 목업 데이터를 사용합니다.", error);
-    return fallbackTokens;
+    console.error(
+      `[coingecko] 시세를 불러오지 못해 ${lastSuccessfulTokens ? "마지막으로 받은 시세" : "목업 데이터"}를 사용합니다.`,
+      error,
+    );
+    return lastSuccessfulTokens ?? fallbackTokens;
   }
 }

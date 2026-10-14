@@ -16,6 +16,8 @@ const FEEDS = [
 const MAX_ITEMS = 10;
 const MAX_PER_SOURCE = 5;
 
+let lastSuccessfulNews: CryptoNews[] | null = null;
+
 const fallbackNews: CryptoNews[] = [
   { id: "f-1", title: "비트코인, 숏 포지션 대규모 청산 속 반등", link: "#", source: "Space DEX", publishedAt: "2026-10-14T03:00:00Z" },
   { id: "f-2", title: "이더리움 스테이킹 물량 사상 최대치 경신", link: "#", source: "Space DEX", publishedAt: "2026-10-14T02:30:00Z" },
@@ -77,9 +79,10 @@ export async function getCryptoNews(): Promise<CryptoNews[]> {
     if (r.status === "rejected") console.error(`[news] ${FEEDS[i].source} 피드를 불러오지 못했습니다.`, r.reason);
   });
 
-  if (news.length === 0) return fallbackNews;
+  if (news.length === 0) return lastSuccessfulNews ?? fallbackNews;
 
-  return news
+  lastSuccessfulNews = news
     .sort((a, b) => b.publishedAt.localeCompare(a.publishedAt))
     .slice(0, MAX_ITEMS);
+  return lastSuccessfulNews;
 }
