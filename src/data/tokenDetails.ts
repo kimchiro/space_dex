@@ -23,7 +23,7 @@ const profiles: Record<string, TokenProfile> = {
 export function getTokenProfile(token: Token): TokenProfile {
   return (
     profiles[token.symbol] ?? {
-      description: `${token.chain} 생태계에서 거래되는 ${token.name}(${token.symbol}) 토큰이에요.`,
+      description: `${token.chain ? `${token.chain} 생태계에서 ` : ""}거래되는 ${token.name}(${token.symbol}) 토큰이에요.`,
       issuer: `${token.name} Foundation`,
       launchDate: "2021년 6월 1일",
       maxSupply: Math.round((token.marketCap / token.price) * 1.4),
@@ -82,7 +82,7 @@ export function getNews(token: Token): NewsItem[] {
     { id: `${s}-2`, type: "뉴스", title: `${s}, 24시간 DEX 거래량 급증… 대형 지갑 매집 포착`, source: "코인데스크", time: "38분 전" },
     { id: `${s}-3`, type: "뉴스", title: `${n} 생태계 TVL 사상 최고치 경신`, source: "블록미디어", time: "2시간 전" },
     { id: `${s}-4`, type: "공시", title: `${s} 토큰 언락 물량 공개 (다음 달 예정)`, source: "토큰 언락스", time: "5시간 전" },
-    { id: `${s}-5`, type: "뉴스", title: `${token.chain} 네트워크 수수료 인하… ${s} 유동성 풀 확대 기대`, source: "디크립트", time: "어제" },
+    { id: `${s}-5`, type: "뉴스", title: `${token.chain ?? n} 네트워크 수수료 인하… ${s} 유동성 풀 확대 기대`, source: "디크립트", time: "어제" },
     { id: `${s}-6`, type: "뉴스", title: `기관 투자자, ${n} 관련 상품 출시 검토`, source: "더블록", time: "2일 전" },
     { id: `${s}-7`, type: "공시", title: `${n} 거버넌스 제안 #42 투표 결과 공지`, source: `${n} 거버넌스`, time: "3일 전" },
   ];

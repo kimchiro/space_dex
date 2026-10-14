@@ -3,12 +3,14 @@
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import styled from "styled-components";
-import { generateSeries, tokens, type Token } from "@/data/tokens";
+import { generateSeries, tokenSubtitle, type Token } from "@/data/tokens";
 import { formatCompact, formatPrice } from "@/lib/format";
 import { useWatchlist } from "@/components/providers/WatchlistProvider";
+import { useMarket } from "@/components/providers/MarketProvider";
 import TokenIcon from "@/components/common/TokenIcon";
 import ChangeText from "@/components/common/ChangeText";
 import Sparkline from "@/components/common/Sparkline";
+import RecentCoins from "./RecentCoins";
 
 const sortTabs = [
   { key: "volume", label: "거래대금", sort: (a: Token, b: Token) => b.volume24h - a.volume24h },
@@ -26,14 +28,12 @@ export default function TokenRanking() {
   const { isWatched, toggle } = useWatchlist();
   const [sortKey, setSortKey] = useState<SortKey>("volume");
   const [period, setPeriod] = useState(periods[0]);
-  const [chain, setChain] = useState("전체");
-
-  const chainFilters = ["전체", ...new Set(tokens.map((t) => t.chain))];
+  const { tokens } = useMarket();
 
   const rows = useMemo(() => {
     const sorter = sortTabs.find((t) => t.key === sortKey)!.sort;
-    return tokens.filter((t) => chain === "전체" || t.chain === chain).sort(sorter);
-  }, [sortKey, chain]);
+    return [...tokens].sort(sorter);
+  }, [sortKey, tokens]);
 
   return (
     <Section>
@@ -41,29 +41,22 @@ export default function TokenRanking() {
         <Title>실시간 차트</Title>
         <Periods>
           {periods.map((p) => (
-            <Chip key={p} $active={p === period} onClick={() => setPeriod(p)}>
+            <PeriodChip key={p} $active={p === period} onClick={() => setPeriod(p)}>
               {p}
-            </Chip>
+            </PeriodChip>
           ))}
         </Periods>
       </TitleRow>
 
-      <FilterRow>
-        <SortTabs>
-          {sortTabs.map((t) => (
-            <SortTab key={t.key} $active={t.key === sortKey} onClick={() => setSortKey(t.key)}>
-              {t.label}
-            </SortTab>
-          ))}
-        </SortTabs>
-        <ChainFilters>
-          {chainFilters.map((c) => (
-            <Chip key={c} $active={c === chain} onClick={() => setChain(c)}>
-              {c}
-            </Chip>
-          ))}
-        </ChainFilters>
-      </FilterRow>
+      <SortTabs>
+        {sortTabs.map((t) => (
+          <SortTab key={t.key} $active={t.key === sortKey} onClick={() => setSortKey(t.key)}>
+            {t.label}
+          </SortTab>
+        ))}
+      </SortTabs>
+
+      <RecentCoins />
 
       <Table>
         <thead>
@@ -73,7 +66,7 @@ export default function TokenRanking() {
             <Th>등락률</Th>
             <Th>24h 거래대금</Th>
             <Th>시가총액</Th>
-            <Th>차트</Th>
+            <Th>7일 차트</Th>
             <Th />
           </tr>
         </thead>
@@ -83,12 +76,10 @@ export default function TokenRanking() {
               <Td $align="left">
                 <TokenCell>
                   <Rank>{i + 1}</Rank>
-                  <TokenIcon symbol={token.symbol} color={token.color} />
+                  <TokenIcon symbol={token.symbol} color={token.color} image={token.image} />
                   <div>
                     <TokenName>{token.name}</TokenName>
-                    <TokenSub>
-                      {token.symbol} · {token.chain}
-                    </TokenSub>
+                    <TokenSub>{tokenSubtitle(token)}</TokenSub>
                   </div>
                 </TokenCell>
               </Td>
@@ -126,6 +117,7 @@ export default function TokenRanking() {
 }
 
 function sparkFor(token: Token) {
+  if (token.sparkline) return token.sparkline;
   const series = generateSeries(token.symbol, 30, token.price, 0.012);
   const isUp = series[series.length - 1] >= series[0];
   if (isUp !== token.change24h >= 0) series.reverse();
@@ -151,18 +143,10 @@ const Periods = styled.div`
   gap: 6px;
 `;
 
-const FilterRow = styled.div`
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 8px;
-`;
-
 const SortTabs = styled.div`
   display: flex;
   gap: 16px;
+  margin-bottom: 8px;
 `;
 
 const SortTab = styled.button<{ $active: boolean }>`
@@ -177,24 +161,18 @@ const SortTab = styled.button<{ $active: boolean }>`
   }
 `;
 
-const ChainFilters = styled.div`
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-`;
-
-const Chip = styled.button<{ $active: boolean }>`
+const PeriodChip = styled.button<{ $active: boolean }>`
   height: 32px;
   padding: 0 12px;
   border-radius: ${({ theme }) => theme.radius.full};
   font-size: 13px;
   font-weight: 600;
-  color: ${({ theme, $active }) => ($active ? "#fff" : theme.colors.textSub)};
-  background: ${({ theme, $active }) => ($active ? theme.colors.text : theme.colors.surface)};
-  transition: all 0.15s;
+  color: ${({ theme, $active }) => ($active ? "#fff" : theme.colors.primary)};
+  background: ${({ theme, $active }) => ($active ? theme.colors.primary : theme.colors.primaryWeak)};
+  transition: background 0.15s;
 
   &:hover {
-    background: ${({ theme, $active }) => ($active ? theme.colors.text : theme.colors.surfaceHover)};
+    background: ${({ theme, $active }) => ($active ? theme.colors.primaryHover : "#d6e8ff")};
   }
 `;
 

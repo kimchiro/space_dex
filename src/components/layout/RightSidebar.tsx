@@ -3,8 +3,10 @@
 import Link from "next/link";
 import { useState } from "react";
 import styled from "styled-components";
-import { tokens, type Token } from "@/data/tokens";
+import type { Token } from "@/data/tokens";
+import { useMarket } from "@/components/providers/MarketProvider";
 import { formatPrice } from "@/lib/format";
+import { useRecentViewed } from "@/lib/recentViewed";
 import { useWatchlist } from "@/components/providers/WatchlistProvider";
 import TokenIcon from "@/components/common/TokenIcon";
 import ChangeText from "@/components/common/ChangeText";
@@ -17,17 +19,23 @@ const tabs = [
 
 type TabKey = (typeof tabs)[number]["key"];
 
-const recentSymbols = ["ARB", "PEPE", "UNI", "LINK"];
+const emptyMessages: Record<TabKey, string> = {
+  watch: "관심 토큰이 없어요. 하트를 눌러 추가해 보세요.",
+  recent: "최근 조회한 코인이 없어요.",
+  hot: "",
+};
 
 export default function RightSidebar() {
   const [tab, setTab] = useState<TabKey>("watch");
   const { watchlist } = useWatchlist();
+  const recent = useRecentViewed();
+  const { tokens, findToken } = useMarket();
 
   const list: Token[] =
     tab === "watch"
       ? tokens.filter((t) => watchlist.includes(t.symbol))
       : tab === "recent"
-        ? tokens.filter((t) => recentSymbols.includes(t.symbol))
+        ? recent.map(findToken).filter((t): t is Token => Boolean(t))
         : [...tokens].sort((a, b) => b.change24h - a.change24h).slice(0, 6);
 
   return (
@@ -41,17 +49,13 @@ export default function RightSidebar() {
       </Tabs>
 
       {list.length === 0 ? (
-        <Empty>
-          관심 토큰이 없어요.
-          <br />
-          하트를 눌러 추가해 보세요.
-        </Empty>
+        <Empty>{emptyMessages[tab]}</Empty>
       ) : (
         <List>
           {list.map((token) => (
             <li key={token.symbol}>
               <Row href={`/trade/${token.symbol}`}>
-                <TokenIcon symbol={token.symbol} color={token.color} size={32} />
+                <TokenIcon symbol={token.symbol} color={token.color} image={token.image} size={32} />
                 <Info>
                   <Name>{token.name}</Name>
                   <Price>{formatPrice(token.price)}</Price>

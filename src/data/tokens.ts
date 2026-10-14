@@ -1,15 +1,20 @@
 export type Token = {
   symbol: string;
   name: string;
-  chain: string;
+  chain?: string;
   price: number;
   change24h: number;
   volume24h: number;
   marketCap: number;
   color: string;
+  id?: string;
+  image?: string;
+  rank?: number;
+  sparkline?: number[];
 };
 
-export const tokens: Token[] = [
+/** 코인게코 API를 쓸 수 없을 때 사용하는 목업 시세 */
+export const fallbackTokens: Token[] = [
   { symbol: "BTC", name: "비트코인", chain: "Ethereum", price: 98420.12, change24h: 2.34, volume24h: 3_820_000_000, marketCap: 1_940_000_000_000, color: "#f7931a" },
   { symbol: "ETH", name: "이더리움", chain: "Ethereum", price: 3712.56, change24h: 3.91, volume24h: 2_410_000_000, marketCap: 446_000_000_000, color: "#627eea" },
   { symbol: "SOL", name: "솔라나", chain: "Solana", price: 212.48, change24h: -1.27, volume24h: 1_120_000_000, marketCap: 101_000_000_000, color: "#14f195" },
@@ -27,8 +32,11 @@ export const tokens: Token[] = [
   { symbol: "POL", name: "폴리곤", chain: "Polygon", price: 0.5234, change24h: -0.74, volume24h: 140_000_000, marketCap: 4_300_000_000, color: "#8247e5" },
 ];
 
-export const findToken = (symbol: string) =>
-  tokens.find((t) => t.symbol.toLowerCase() === symbol.toLowerCase());
+export const findToken = (list: Token[], symbol: string) =>
+  list.find((t) => t.symbol.toLowerCase() === symbol.toLowerCase());
+
+export const tokenSubtitle = (token: Token) =>
+  token.chain ? `${token.symbol} · ${token.chain}` : token.symbol;
 
 export type MarketIndex = {
   label: string;

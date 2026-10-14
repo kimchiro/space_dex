@@ -3,13 +3,23 @@
 import { ThemeProvider } from "styled-components";
 import { theme } from "@/styles/theme";
 import { GlobalStyle } from "@/styles/GlobalStyle";
+import type { Token } from "@/data/tokens";
+import { MarketProvider } from "./MarketProvider";
 import { WatchlistProvider } from "./WatchlistProvider";
 
-export default function Providers({ children }: { children: React.ReactNode }) {
+export default function Providers({
+  initialTokens,
+  children,
+}: {
+  initialTokens: Token[];
+  children: React.ReactNode;
+}) {
   return (
     <ThemeProvider theme={theme}>
       <GlobalStyle />
-      <WatchlistProvider>{children}</WatchlistProvider>
+      <MarketProvider initialTokens={initialTokens}>
+        <WatchlistProvider>{children}</WatchlistProvider>
+      </MarketProvider>
     </ThemeProvider>
   );
 }

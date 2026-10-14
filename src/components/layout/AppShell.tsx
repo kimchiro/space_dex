@@ -3,11 +3,13 @@
 import styled from "styled-components";
 import Header from "./Header";
 import RightSidebar from "./RightSidebar";
+import NoticeBanner from "./NoticeBanner";
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <>
       <Header />
+      <NoticeBanner />
       <Body>
         <Main>{children}</Main>
         <RightSidebar />

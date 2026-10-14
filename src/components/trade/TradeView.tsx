@@ -1,10 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import styled from "styled-components";
-import type { Token } from "@/data/tokens";
+import { tokenSubtitle, type Token } from "@/data/tokens";
 import { formatCompact, formatPrice } from "@/lib/format";
+import { addRecentViewed } from "@/lib/recentViewed";
 import { useWatchlist } from "@/components/providers/WatchlistProvider";
+import { useMarket } from "@/components/providers/MarketProvider";
 import TokenIcon from "@/components/common/TokenIcon";
 import ChangeText from "@/components/common/ChangeText";
 import PriceChart from "./PriceChart";
@@ -14,21 +16,25 @@ import CoinInfo from "./CoinInfo";
 import NewsList from "./NewsList";
 import DetailTabs, { type DetailTabKey } from "./DetailTabs";
 
-export default function TradeView({ token }: { token: Token }) {
+export default function TradeView({ token: initialToken }: { token: Token }) {
   const [tab, setTab] = useState<DetailTabKey>("chart");
+  const { findToken } = useMarket();
+  const token = findToken(initialToken.symbol) ?? initialToken;
   const { isWatched, toggle } = useWatchlist();
   const watched = isWatched(token.symbol);
+
+  useEffect(() => {
+    addRecentViewed(token.symbol);
+  }, [token.symbol]);
 
   return (
     <>
       <TokenHeader>
-        <TokenIcon symbol={token.symbol} color={token.color} size={44} />
+        <TokenIcon symbol={token.symbol} color={token.color} image={token.image} size={44} />
         <div>
           <NameRow>
             <Name>{token.name}</Name>
-            <Symbol>
-              {token.symbol} · {token.chain}
-            </Symbol>
+            <Symbol>{tokenSubtitle(token)}</Symbol>
           </NameRow>
           <PriceRow>
             <Price>{formatPrice(token.price)}</Price>

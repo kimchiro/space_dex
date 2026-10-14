@@ -29,7 +29,7 @@ export default function CoinInfo({ token }: { token: Token }) {
     ],
     [
       ["발행처", profile.issuer],
-      ["체인", token.chain],
+      ["체인", token.chain ?? "-"],
       ["컨트랙트", shortAddress(profile.contract)],
     ],
     [
