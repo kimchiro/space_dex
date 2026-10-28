@@ -9,44 +9,9 @@ import { useMarket } from "@/components/providers/MarketProvider";
 import { findToken, type Token } from "@/data/tokens";
 import { formatPrice } from "@/lib/format";
 import { useRecentViewed } from "@/lib/recentViewed";
+import { searchTokens } from "@/lib/tokenSearch";
 
 const MAX_RESULTS = 8;
-
-const CHOSEONG = "ㄱㄲㄴㄷㄸㄹㅁㅂㅃㅅㅆㅇㅈㅉㅊㅋㅌㅍㅎ";
-
-/** "비트코인" → "ㅂㅌㅋㅇ". 한글 음절이 아닌 글자는 그대로 둔다. */
-function toChoseong(text: string) {
-  return Array.from(text, (ch) => {
-    const code = ch.charCodeAt(0) - 0xac00;
-    return code >= 0 && code <= 11171 ? CHOSEONG[Math.floor(code / 588)] : ch;
-  }).join("");
-}
-
-const isChoseongOnly = (text: string) => /^[ㄱ-ㅎ]+$/.test(text);
-
-/** 낮을수록 위에 노출. 일치하지 않으면 null. */
-function matchScore(token: Token, query: string) {
-  const q = query.toLowerCase();
-  const symbol = token.symbol.toLowerCase();
-  const name = token.name.toLowerCase();
-  const englishName = (token.id ?? "").replace(/-/g, " ");
-
-  if (symbol === q) return 0;
-  if (symbol.startsWith(q)) return 1;
-  if (name.startsWith(q) || englishName.startsWith(q)) return 2;
-  if (name.includes(q) || englishName.includes(q) || symbol.includes(q)) return 3;
-  if (isChoseongOnly(q) && toChoseong(token.name).includes(q)) return 4;
-  return null;
-}
-
-function searchTokens(tokens: Token[], query: string) {
-  return tokens
-    .map((token, index) => ({ token, index, score: matchScore(token, query) }))
-    .filter((r): r is { token: Token; index: number; score: number } => r.score !== null)
-    .sort((a, b) => a.score - b.score || a.index - b.index)
-    .slice(0, MAX_RESULTS)
-    .map((r) => r.token);
-}
 
 export default function HeaderSearch() {
   const router = useRouter();
@@ -61,7 +26,7 @@ export default function HeaderSearch() {
 
   const trimmed = query.trim();
   const results = useMemo(() => {
-    if (trimmed) return searchTokens(tokens, trimmed);
+    if (trimmed) return searchTokens(tokens, trimmed, MAX_RESULTS);
     return recentSymbols
       .map((symbol) => findToken(tokens, symbol))
       .filter((t): t is Token => Boolean(t))

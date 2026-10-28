@@ -15,7 +15,7 @@ import SymbolSelect from "./SymbolSelect";
 import { Badge, Button, Card, CardHeader, Field, FormGrid, Input, Muted, Notice, Row, Select, Stat, StatGrid, SubTitle, Table, TableScroll, Title } from "./ui";
 import { settingsFromScript, useAnalysis } from "./useScriptOverlay";
 
-const DEFAULT_DAYS: Record<IntervalKey, number> = { "1m": 3, "5m": 14, "15m": 45, "1h": 120, "4h": 540, "1d": 1460 };
+const DEFAULT_DAYS: Record<IntervalKey, number> = { "1m": 3, "5m": 14, "15m": 45, "1h": 120, "4h": 540, "1d": 1460, "1w": 3650 };
 
 const toDateInput = (time: number) => new Date(time + 9 * 3600_000).toISOString().slice(0, 10);
 const nowMs = () => Date.now();

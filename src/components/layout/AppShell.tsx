@@ -1,7 +1,7 @@
 "use client";
 
 import { usePathname } from "next/navigation";
-import styled from "styled-components";
+import styled, { css } from "styled-components";
 import type { CryptoNews } from "@/lib/news";
 import Header from "./Header";
 import RightSidebar from "./RightSidebar";
@@ -15,26 +15,46 @@ export default function AppShell({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
-  const wide = pathname.startsWith("/lab");
+  const fullscreen = pathname.startsWith("/lab");
 
   return (
-    <>
+    <Shell $fullscreen={fullscreen}>
       <Header />
       <NoticeBanner />
-      <Body>
+      <Body $fullscreen={fullscreen}>
         <Main>{children}</Main>
-        {!wide && <RightSidebar news={news} />}
+        {!fullscreen && <RightSidebar news={news} />}
       </Body>
-    </>
+    </Shell>
   );
 }
 
-const Body = styled.div`
+const Shell = styled.div<{ $fullscreen: boolean }>`
+  ${({ $fullscreen }) =>
+    $fullscreen &&
+    css`
+      display: flex;
+      flex-direction: column;
+      height: 100dvh;
+    `}
+`;
+
+const Body = styled.div<{ $fullscreen: boolean }>`
   display: flex;
   gap: 24px;
   max-width: ${({ theme }) => theme.layout.maxWidth};
   margin: 0 auto;
   padding: 24px;
+
+  ${({ $fullscreen }) =>
+    $fullscreen &&
+    css`
+      flex: 1;
+      width: 100%;
+      max-width: none;
+      min-height: 0;
+      padding: 0;
+    `}
 `;
 
 const Main = styled.main`

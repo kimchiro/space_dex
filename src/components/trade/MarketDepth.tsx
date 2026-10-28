@@ -73,7 +73,7 @@ function withCumulative(levels: DepthLevel[]) {
   });
 }
 
-export default function MarketDepth({ token }: { token: Token }) {
+export default function MarketDepth({ token, plain = false }: { token: Token; plain?: boolean }) {
   const state = useMarketDepth(token.symbol);
   const live = state?.status === "live" ? state.data : null;
 
@@ -104,7 +104,7 @@ export default function MarketDepth({ token }: { token: Token }) {
   const unit = token.symbol;
 
   return (
-    <Card>
+    <Card $plain={plain}>
       <Head>
         <Title>호가 · 체결</Title>
         <Source $live={Boolean(live)}>
@@ -174,11 +174,11 @@ export default function MarketDepth({ token }: { token: Token }) {
   );
 }
 
-const Card = styled.div`
+const Card = styled.div<{ $plain: boolean }>`
   container-type: inline-size;
-  padding: 20px;
+  padding: ${({ $plain }) => ($plain ? "12px" : "20px")};
   border-radius: ${({ theme }) => theme.radius.lg};
-  border: 1px solid ${({ theme }) => theme.colors.border};
+  border: ${({ theme, $plain }) => ($plain ? "none" : `1px solid ${theme.colors.border}`)};
 `;
 
 const Head = styled.div`

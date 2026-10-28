@@ -15,6 +15,7 @@ export const INTERVALS = [
   { key: "1h", label: "1시간", seconds: 3_600 },
   { key: "4h", label: "4시간", seconds: 14_400 },
   { key: "1d", label: "1일", seconds: 86_400 },
+  { key: "1w", label: "1주", seconds: 604_800 },
 ] as const;
 
 export type IntervalKey = (typeof INTERVALS)[number]["key"];
@@ -39,6 +40,8 @@ export function lowerIntervalFor(key: IntervalKey): IntervalKey | null {
       return "5m";
     case "1d":
       return "15m";
+    case "1w":
+      return "1h";
   }
 }
 

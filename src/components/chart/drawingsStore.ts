@@ -7,6 +7,9 @@ import type { Drawing } from "./drawingLayer";
 const store = createLocalStore<Record<string, Drawing[]>>("space-dex:drawings", {});
 const EMPTY: Drawing[] = [];
 
+export const readDrawings = (symbol: string) => store.read()[symbol] ?? EMPTY;
+export const writeDrawings = (symbol: string, drawings: Drawing[]) => store.write((prev) => ({ ...prev, [symbol]: drawings }));
+
 /** 종목별 작도. 시간봉이 바뀌어도 같은 가격·시각에 남는다. */
 export function useDrawings(symbol: string) {
   const all = store.useValue();

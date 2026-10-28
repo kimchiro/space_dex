@@ -71,7 +71,10 @@ type Props = {
   onToolDone?: () => void;
   /** 바뀌면 최근 봉 위주로 화면을 다시 맞춘다. */
   viewKey?: string;
-  height?: number;
+  /** 숫자는 px. "100%"면 부모 높이를 채운다. */
+  height?: number | string;
+  /** 범례 앞에 붙는 이름 (예: "BTC/USDT · 15분") */
+  title?: string;
   ref?: Ref<ChartHandle>;
 };
 
@@ -99,10 +102,13 @@ export default function TradingChart({
   onToolDone,
   viewKey,
   height = 420,
+  title,
   ref,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const legendRef = useRef<HTMLDivElement>(null);
+  const legendRef = useRef<HTMLSpanElement>(null);
+  const changeRef = useRef<HTMLSpanElement>(null);
+  const candlesRef = useRef<Candle[]>(candles);
   const chartRef = useRef<IChartApi | null>(null);
   const candleRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
   const markersRef = useRef<ISeriesMarkersPluginApi<Time> | null>(null);
@@ -197,12 +203,8 @@ export default function TradingChart({
         layer.setDrawings(state.drawings, point ? { id: "preview", kind: state.tool, a: state.pending, b: point } : null);
       }
 
-      const legend = legendRef.current;
-      if (!legend) return;
-      const bar = param.seriesData.get(candle) as { open: number; high: number; low: number; close: number } | undefined;
-      legend.textContent = bar
-        ? `시 ${fmt(bar.open)}  고 ${fmt(bar.high)}  저 ${fmt(bar.low)}  종 ${fmt(bar.close)}`
-        : "";
+      const index = param.logical !== undefined && param.seriesData.get(candle) ? Math.round(param.logical) : candlesRef.current.length - 1;
+      renderLegend(legendRef.current, changeRef.current, candlesRef.current, index);
     };
 
     chart.subscribeClick(onClick);
@@ -230,6 +232,8 @@ export default function TradingChart({
     candle.setData(
       candles.map((c) => ({ time: toChartTime(c.time), open: c.open, high: c.high, low: c.low, close: c.close })),
     );
+    candlesRef.current = candles;
+    renderLegend(legendRef.current, changeRef.current, candles, candles.length - 1);
 
     const closes = candles.map((c) => c.close);
     const times = candles.map((c) => toChartTime(c.time));
@@ -365,13 +369,33 @@ export default function TradingChart({
   return (
     <Frame style={{ height }} $drawing={tool !== "none"}>
       <div ref={containerRef} style={{ position: "absolute", inset: 0 }} />
-      <Legend ref={legendRef} />
+      <Legend>
+        {title && <strong>{title}</strong>}
+        <span ref={legendRef} />
+        <span ref={changeRef} />
+      </Legend>
     </Frame>
   );
 }
 
 function fmt(value: number) {
   return value >= 1 ? value.toLocaleString("en-US", { maximumFractionDigits: 2 }) : value.toPrecision(4);
+}
+
+function renderLegend(values: HTMLElement | null, change: HTMLElement | null, candles: Candle[], index: number) {
+  if (!values || !change) return;
+  const bar = candles[index];
+  if (!bar) {
+    values.textContent = "";
+    change.textContent = "";
+    return;
+  }
+  const prev = candles[index - 1]?.close ?? bar.open;
+  const diff = bar.close - prev;
+  const pct = prev ? (diff / prev) * 100 : 0;
+  values.textContent = `시 ${fmt(bar.open)}  고 ${fmt(bar.high)}  저 ${fmt(bar.low)}  종 ${fmt(bar.close)}`;
+  change.textContent = `${diff >= 0 ? "+" : ""}${fmt(diff)} (${pct >= 0 ? "+" : ""}${pct.toFixed(2)}%)`;
+  change.style.color = diff > 0 ? theme.colors.rise : diff < 0 ? theme.colors.fall : theme.colors.textWeak;
 }
 
 const Frame = styled.div<{ $drawing: boolean }>`
@@ -387,7 +411,16 @@ const Legend = styled.div`
   z-index: 2;
   font-size: 11px;
   font-variant-numeric: tabular-nums;
+  display: flex;
+  gap: 8px;
+  max-width: calc(100% - 80px);
+  overflow: hidden;
   color: ${({ theme }) => theme.colors.textSub};
   pointer-events: none;
-  white-space: nowrap;
+  white-space: pre;
+
+  strong {
+    font-weight: 700;
+    color: ${({ theme }) => theme.colors.text};
+  }
 `;
