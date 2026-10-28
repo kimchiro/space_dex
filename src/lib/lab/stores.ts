@@ -97,7 +97,8 @@ export type ReplaySession = {
 export const replayStore = createLocalStore<ReplaySession[]>("space-dex:lab:replays", []);
 
 export type WorkspacePane = { id: string; symbol: string; interval: IntervalKey; indicators: IndicatorConfig; scriptId: string | null };
-export type Workspace = { layout: 1 | 2 | 4; panes: WorkspacePane[]; savedAt: number | null };
+/** layout: 화면에 보이는 차트 수(1~6). panes 앞에서부터 layout개를 띄운다. */
+export type Workspace = { layout: number; panes: WorkspacePane[]; savedAt: number | null };
 
 export const workspaceStore = createLocalStore<Workspace | null>("space-dex:lab:workspace", null);
 

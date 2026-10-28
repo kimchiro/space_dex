@@ -117,11 +117,12 @@ export const NewsIcon = (p: IconProps) => (
     <path d="M17 9h3v8a2 2 0 0 1-2 2M8 9h5M8 13h5" />
   </Svg>
 );
-export const LayoutIcon = ({ count, size = 18 }: { count: 1 | 2 | 4; size?: number }) => (
+export const LayoutIcon = ({ count, size = 18 }: { count: number; size?: number }) => (
   <Svg size={size}>
     <rect x="3" y="4" width="18" height="16" rx="2" />
-    {count >= 2 && <path d="M12 4v16" />}
-    {count === 4 && <path d="M3 12h18" />}
+    {(count === 2 || count === 4) && <path d="M12 4v16" />}
+    {(count === 3 || count >= 5) && <path d="M9 4v16M15 4v16" />}
+    {count >= 4 && <path d="M3 12h18" />}
   </Svg>
 );
 export const ChevronDown = (p: IconProps) => (

@@ -3,7 +3,7 @@
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import styled, { css } from "styled-components";
 import { DEFAULT_INDICATORS, type ChartHandle, type IndicatorConfig } from "@/components/chart/TradingChart";
 import type { Drawing, DrawingTool } from "@/components/chart/drawingLayer";
@@ -21,6 +21,7 @@ import ChartPane, { type PaneFeed } from "./terminal/ChartPane";
 import Dropdown, { MenuCheck, MenuDivider, MenuItem, MenuLabel } from "./terminal/Dropdown";
 import MarketPanel, { formatQuote } from "./terminal/MarketPanel";
 import NewsPanel from "./terminal/NewsPanel";
+import SplitPicker from "./terminal/SplitPicker";
 import {
   BookIcon,
   CameraIcon,
@@ -82,11 +83,13 @@ const INDICATOR_OPTIONS: { key: keyof IndicatorConfig; label: string }[] = [
   { key: "rsi", label: "RSI 14" },
 ];
 
-const LAYOUTS: { count: 1 | 2 | 4; label: string }[] = [
-  { count: 1, label: "1화면" },
-  { count: 2, label: "2분할" },
-  { count: 4, label: "4분할" },
-];
+const WIDE_QUERY = "(min-width: 1100px)";
+const subscribeWide = (onChange: () => void) => {
+  const mq = window.matchMedia(WIDE_QUERY);
+  mq.addEventListener("change", onChange);
+  return () => mq.removeEventListener("change", onChange);
+};
+const readWide = () => window.matchMedia(WIDE_QUERY).matches;
 
 const kstClock = new Intl.DateTimeFormat("ko-KR", { timeZone: "Asia/Seoul", hour: "2-digit", minute: "2-digit", hour12: false });
 
@@ -123,7 +126,10 @@ export default function LabView() {
   const [hideDrawings, setHideDrawings] = useState(false);
   const [history, setHistory] = useState<History>({});
   const [feed, setFeed] = useState<PaneFeed | null>(null);
-  const [side, setSide] = useState<SideTab | null>(() => (window.innerWidth >= 1100 ? "market" : null));
+  const wide = useSyncExternalStore(subscribeWide, readWide, () => false);
+  // undefined면 아직 사용자가 고르지 않은 상태라 넓은 화면에서만 종목 패널을 기본으로 연다.
+  const [sideChoice, setSide] = useState<SideTab | null | undefined>(undefined);
+  const side = sideChoice === undefined ? (wide ? "market" : null) : sideChoice;
   const [dock, setDock] = useState<{ tab: DockTab; size: DockSize; visited: DockTab[] }>(() => {
     const tab = params.get("tab");
     return tab === "pine" || tab === "backtest" || tab === "replay" ? { tab, size: "half", visited: [tab] } : { tab: "pine", size: "closed", visited: [] };
@@ -148,6 +154,18 @@ export default function LabView() {
   };
   const updateActive = (patch: Partial<WorkspacePane>) =>
     update({ ...workspace, panes: workspace.panes.map((p) => (p.id === activePane.id ? { ...p, ...patch } : p)) });
+
+  const applySplit = (symbols: string[]) => {
+    const unused = [...workspace.panes];
+    const panes = symbols.map((s) => {
+      const at = unused.findIndex((p) => p.symbol === s);
+      if (at >= 0) return unused.splice(at, 1)[0];
+      return { id: newId(), symbol: s, interval: activePane.interval, indicators: activePane.indicators, scriptId: null };
+    });
+    update({ ...workspace, layout: panes.length, panes });
+    const keep = panes.findIndex((p) => p.id === activePane.id);
+    setActiveIndex(keep >= 0 ? keep : 0);
+  };
 
   const saveLayout = () => {
     const saved = { ...workspace, savedAt: Date.now() };
@@ -216,7 +234,7 @@ export default function LabView() {
   const openDock = (tab: DockTab) =>
     setDock((d) => ({ tab, size: d.size === "closed" ? "half" : d.size, visited: d.visited.includes(tab) ? d.visited : [...d.visited, tab] }));
 
-  const openSide = (tab: SideTab) => setSide((s) => (s === tab ? null : tab));
+  const openSide = (tab: SideTab) => setSide(side === tab ? null : tab);
 
   const focusSearch = () => {
     setSide("market");
@@ -358,29 +376,23 @@ export default function LabView() {
         <Divider />
         <Dropdown
           label="화면 분할"
+          panel
           trigger={() => (
             <>
-              <LayoutIcon count={workspace.layout} size={16} /> 화면 분할 <ChevronDown />
+              <LayoutIcon count={visible.length} size={16} /> 화면 분할 {visible.length > 1 && <Badge>{visible.length}</Badge>} <ChevronDown />
             </>
           )}
         >
-          {(close) =>
-            LAYOUTS.map((l) => (
-              <MenuItem
-                key={l.count}
-                type="button"
-                $active={workspace.layout === l.count}
-                onClick={() => {
-                  update({ ...workspace, layout: l.count });
-                  if (activeIndex >= l.count) setActiveIndex(0);
-                  close();
-                }}
-              >
-                <LayoutIcon count={l.count} size={16} />
-                {l.label}
-              </MenuItem>
-            ))
-          }
+          {(close) => (
+            <SplitPicker
+              initial={visible.map((p) => p.symbol)}
+              onCancel={close}
+              onApply={(symbols) => {
+                applySplit(symbols);
+                close();
+              }}
+            />
+          )}
         </Dropdown>
         <BarButton type="button" onClick={saveLayout} disabled={!dirty} title={workspace.savedAt ? `${new Date(workspace.savedAt).toLocaleString("ko-KR")} 저장됨` : "아직 저장하지 않았어요"}>
           <SaveIcon size={16} />
@@ -419,7 +431,7 @@ export default function LabView() {
       </Tools>
 
       <Center>
-        <Grid $layout={workspace.layout} $hidden={dock.size === "max"}>
+        <Grid $count={visible.length} $hidden={dock.size === "max"}>
           {visible.map((pane, i) => (
             <ChartPane
               key={pane.id}
@@ -874,15 +886,29 @@ const Center = styled.div`
   min-height: 0;
 `;
 
-const GRID_TEMPLATES = {
+const GRID_TEMPLATES: Record<number, string> = {
   1: "grid-template: minmax(0, 1fr) / minmax(0, 1fr);",
   2: "grid-template: minmax(0, 1fr) / repeat(2, minmax(0, 1fr));",
+  3: "grid-template: minmax(0, 1fr) / repeat(3, minmax(0, 1fr));",
   4: "grid-template: repeat(2, minmax(0, 1fr)) / repeat(2, minmax(0, 1fr));",
-} as const;
+  // 5분할은 6칸 격자에서 윗줄 3개·아랫줄 2개가 빈칸 없이 채워지게 한다.
+  5: "grid-template: repeat(2, minmax(0, 1fr)) / repeat(6, minmax(0, 1fr)); > * { grid-column: span 2; } > :nth-child(n + 4) { grid-column: span 3; }",
+  6: "grid-template: repeat(2, minmax(0, 1fr)) / repeat(3, minmax(0, 1fr));",
+};
 
-const Grid = styled.div<{ $layout: 1 | 2 | 4; $hidden: boolean }>`
+const Badge = styled.span`
+  min-width: 18px;
+  padding: 1px 5px;
+  border-radius: ${({ theme }) => theme.radius.full};
+  background: ${({ theme }) => theme.colors.primaryWeak};
+  color: ${({ theme }) => theme.colors.primary};
+  font-size: 11px;
+  font-weight: 700;
+`;
+
+const Grid = styled.div<{ $count: number; $hidden: boolean }>`
   display: ${({ $hidden }) => ($hidden ? "none" : "grid")};
-  ${({ $layout }) => GRID_TEMPLATES[$layout]}
+  ${({ $count }) => GRID_TEMPLATES[$count] ?? GRID_TEMPLATES[1]}
   flex: 1;
   gap: 1px;
   min-height: 0;

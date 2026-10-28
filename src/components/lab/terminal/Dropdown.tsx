@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import styled from "styled-components";
 
 /** 버튼을 누르면 아래로 열리는 메뉴. 바깥 클릭·Esc로 닫힌다. */
@@ -9,46 +10,72 @@ export default function Dropdown({
   children,
   align = "left",
   label,
+  panel = false,
 }: {
   trigger: (open: boolean) => ReactNode;
   children: (close: () => void) => ReactNode;
   align?: "left" | "right";
   label: string;
+  /** 내용이 스스로 크기·스크롤을 관리하는 패널형 메뉴 */
+  panel?: boolean;
 }) {
   const [open, setOpen] = useState(false);
-  const rootRef = useRef<HTMLDivElement>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!open) return;
     const onPointer = (e: PointerEvent) => {
-      if (!rootRef.current?.contains(e.target as Node)) setOpen(false);
+      const target = e.target as Node;
+      if (!buttonRef.current?.contains(target) && !menuRef.current?.contains(target)) setOpen(false);
     };
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
+    const onResize = () => setOpen(false);
+    const onScroll = (e: Event) => {
+      if (!menuRef.current?.contains(e.target as Node)) setOpen(false);
+    };
     document.addEventListener("pointerdown", onPointer);
     document.addEventListener("keydown", onKey);
+    document.addEventListener("scroll", onScroll, true);
+    window.addEventListener("resize", onResize);
     return () => {
       document.removeEventListener("pointerdown", onPointer);
       document.removeEventListener("keydown", onKey);
+      document.removeEventListener("scroll", onScroll, true);
+      window.removeEventListener("resize", onResize);
     };
   }, [open]);
 
+  // 툴바가 가로 스크롤 영역이라 메뉴를 그 안에 두면 잘리므로, 버튼 위치를 기준으로 화면에 고정해 띄운다.
+  useLayoutEffect(() => {
+    const menu = menuRef.current;
+    const button = buttonRef.current?.getBoundingClientRect();
+    if (!open || !menu || !button) return;
+    const wanted = align === "left" ? button.left : button.right - menu.offsetWidth;
+    menu.style.top = `${button.bottom + 4}px`;
+    menu.style.left = `${Math.max(8, Math.min(wanted, window.innerWidth - menu.offsetWidth - 8))}px`;
+  }, [open, align]);
+
   return (
-    <Root ref={rootRef}>
-      <TriggerButton type="button" aria-haspopup="menu" aria-expanded={open} aria-label={label} onClick={() => setOpen((o) => !o)}>
+    <>
+      <TriggerButton ref={buttonRef} type="button" aria-haspopup={panel ? "dialog" : "menu"} aria-expanded={open} aria-label={label} onClick={() => setOpen((o) => !o)}>
         {trigger(open)}
       </TriggerButton>
-      {open && (
-        <Menu role="menu" $align={align}>
-          {children(() => setOpen(false))}
-        </Menu>
-      )}
-    </Root>
+      {open &&
+        createPortal(
+          <Menu
+            ref={menuRef}
+            role={panel ? "dialog" : "menu"}
+            aria-label={label}
+            $panel={panel}
+          >
+            {children(() => setOpen(false))}
+          </Menu>,
+          document.fullscreenElement ?? document.body,
+        )}
+    </>
   );
 }
-
-const Root = styled.div`
-  position: relative;
-`;
 
 const TriggerButton = styled.button`
   display: inline-flex;
@@ -69,15 +96,11 @@ const TriggerButton = styled.button`
   }
 `;
 
-const Menu = styled.div<{ $align: "left" | "right" }>`
-  position: absolute;
-  top: calc(100% + 4px);
-  ${({ $align }) => ($align === "left" ? "left: 0;" : "right: 0;")}
-  z-index: 30;
+const Menu = styled.div<{ $panel: boolean }>`
+  position: fixed;
+  z-index: 1000;
   min-width: 200px;
-  max-height: 360px;
-  overflow-y: auto;
-  padding: 6px;
+  ${({ $panel }) => ($panel ? "display: flex; overflow: hidden;" : "max-height: 360px; overflow-y: auto; padding: 6px;")}
   border: 1px solid ${({ theme }) => theme.colors.border};
   border-radius: ${({ theme }) => theme.radius.md};
   background: ${({ theme }) => theme.colors.bg};
