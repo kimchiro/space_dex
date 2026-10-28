@@ -10,6 +10,7 @@ import HeaderSearch from "./HeaderSearch";
 const navItems = [
   { href: "/", label: "홈", match: (p: string) => p === "/" },
   { href: "/trade/BTC", label: "거래", match: (p: string) => p.startsWith("/trade") },
+  { href: "/lab", label: "전략 실험실", match: (p: string) => p.startsWith("/lab") },
   { href: "/pool", label: "유동성 풀", match: (p: string) => p.startsWith("/pool") },
   { href: "/portfolio", label: "내 지갑", match: (p: string) => p.startsWith("/portfolio") },
 ];

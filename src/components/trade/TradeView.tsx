@@ -9,7 +9,7 @@ import { useWatchlist } from "@/components/providers/WatchlistProvider";
 import { useMarket } from "@/components/providers/MarketProvider";
 import TokenIcon from "@/components/common/TokenIcon";
 import ChangeText from "@/components/common/ChangeText";
-import PriceChart from "./PriceChart";
+import TradingViewChart from "./TradingViewChart";
 import MarketDepth from "./MarketDepth";
 import SwapPanel from "./SwapPanel";
 import CoinInfo from "./CoinInfo";
@@ -71,7 +71,7 @@ export default function TradeView({ token: initialToken }: { token: Token }) {
                   <dd>{formatPrice(token.low24h ?? token.price * 0.972)}</dd>
                 </Stat>
               </Stats>
-              <PriceChart token={token} />
+              <TradingViewChart token={token} />
               <MarketDepth token={token} />
             </ChartTab>
           )}

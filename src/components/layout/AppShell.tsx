@@ -1,5 +1,6 @@
 "use client";
 
+import { usePathname } from "next/navigation";
 import styled from "styled-components";
 import type { CryptoNews } from "@/lib/news";
 import Header from "./Header";
@@ -13,13 +14,16 @@ export default function AppShell({
   news: CryptoNews[];
   children: React.ReactNode;
 }) {
+  const pathname = usePathname();
+  const wide = pathname.startsWith("/lab");
+
   return (
     <>
       <Header />
       <NoticeBanner />
       <Body>
         <Main>{children}</Main>
-        <RightSidebar news={news} />
+        {!wide && <RightSidebar news={news} />}
       </Body>
     </>
   );
