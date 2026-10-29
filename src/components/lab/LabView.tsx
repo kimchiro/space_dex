@@ -16,33 +16,37 @@ import { formatCompact } from "@/lib/format";
 import { SAMPLE_SCRIPT, newId, useScripts, workspaceStore, type Workspace, type WorkspacePane } from "@/lib/lab/stores";
 import { DATA_SOURCE, INTERVALS, isIntervalKey, marketPair, type IntervalKey } from "@/lib/market/candles";
 import { useNow } from "@/lib/useNow";
+import AdvancedModal, { isAdvancedTab, type AdvancedTab } from "./AdvancedModal";
+import LabTour, { labTourStore } from "./LabTour";
 import PineLab from "./PineLab";
 import ChartPane, { type PaneFeed } from "./terminal/ChartPane";
 import Dropdown, { MenuCheck, MenuDivider, MenuItem, MenuLabel } from "./terminal/Dropdown";
 import MarketPanel, { formatQuote } from "./terminal/MarketPanel";
 import NewsPanel from "./terminal/NewsPanel";
+import ShareMenu, { type SharePayload } from "./terminal/ShareMenu";
 import SplitPicker from "./terminal/SplitPicker";
 import {
   BookIcon,
   CameraIcon,
   ChevronDown,
-  CloseIcon,
+  ChevronLeft,
+  ChevronRight,
   CodeIcon,
   CrosshairIcon,
   ExpandIcon,
   EyeIcon,
   EyeOffIcon,
   FibIcon,
-  FlaskIcon,
   HLineIcon,
   IndicatorIcon,
   LayoutIcon,
   ListIcon,
   NewsIcon,
   RedoIcon,
-  ReplayIcon,
   SaveIcon,
+  ShareIcon,
   ShrinkIcon,
+  SlidersIcon,
   TrashIcon,
   TrendIcon,
   UndoIcon,
@@ -53,15 +57,7 @@ const BacktestLab = dynamic(() => import("./BacktestLab"), { ssr: false });
 const ReplayLab = dynamic(() => import("./ReplayLab"), { ssr: false });
 
 type SideTab = "market" | "depth" | "news";
-type DockTab = "pine" | "backtest" | "replay";
-type DockSize = "closed" | "half" | "max";
 type History = Record<string, { past: Drawing[][]; future: Drawing[][] }>;
-
-const DOCK_TABS: { key: DockTab; label: string; icon: ReactNode }[] = [
-  { key: "pine", label: "Pine 편집기", icon: <CodeIcon size={16} /> },
-  { key: "backtest", label: "전략 테스터", icon: <FlaskIcon size={16} /> },
-  { key: "replay", label: "리플레이 연습", icon: <ReplayIcon size={16} /> },
-];
 
 const SIDE_TABS: { key: SideTab; label: string; icon: ReactNode }[] = [
   { key: "market", label: "종목", icon: <ListIcon /> },
@@ -83,6 +79,9 @@ const INDICATOR_OPTIONS: { key: keyof IndicatorConfig; label: string }[] = [
   { key: "rsi", label: "RSI 14" },
 ];
 
+const SIDE_WIDTH = 320;
+const SIDE_TRANSITION_MS = 240;
+
 const WIDE_QUERY = "(min-width: 1100px)";
 const subscribeWide = (onChange: () => void) => {
   const mq = window.matchMedia(WIDE_QUERY);
@@ -90,6 +89,7 @@ const subscribeWide = (onChange: () => void) => {
   return () => mq.removeEventListener("change", onChange);
 };
 const readWide = () => window.matchMedia(WIDE_QUERY).matches;
+const subscribeNothing = () => () => {};
 
 const kstClock = new Intl.DateTimeFormat("ko-KR", { timeZone: "Asia/Seoul", hour: "2-digit", minute: "2-digit", hour12: false });
 
@@ -127,13 +127,22 @@ export default function LabView() {
   const [history, setHistory] = useState<History>({});
   const [feed, setFeed] = useState<PaneFeed | null>(null);
   const wide = useSyncExternalStore(subscribeWide, readWide, () => false);
+  const [sideTab, setSideTab] = useState<SideTab>("market");
   // undefined면 아직 사용자가 고르지 않은 상태라 넓은 화면에서만 종목 패널을 기본으로 연다.
-  const [sideChoice, setSide] = useState<SideTab | null | undefined>(undefined);
-  const side = sideChoice === undefined ? (wide ? "market" : null) : sideChoice;
-  const [dock, setDock] = useState<{ tab: DockTab; size: DockSize; visited: DockTab[] }>(() => {
+  const [sideChoice, setSideOpen] = useState<boolean | undefined>(undefined);
+  const sideOpen = sideChoice ?? wide;
+  const side = sideOpen ? sideTab : null;
+  // 접히는 애니메이션 동안만 내용을 남겨 두고, 다 접힌 뒤에는 내려서 숨은 패널이 데이터를 계속 받지 않게 한다.
+  const [sideClosing, setSideClosing] = useState(false);
+  const [advanced, setAdvanced] = useState<{ open: boolean; tab: AdvancedTab; visited: AdvancedTab[] }>(() => {
     const tab = params.get("tab");
-    return tab === "pine" || tab === "backtest" || tab === "replay" ? { tab, size: "half", visited: [tab] } : { tab: "pine", size: "closed", visited: [] };
+    return isAdvancedTab(tab) ? { open: true, tab, visited: [tab] } : { open: false, tab: "pine", visited: [] };
   });
+  // 처음 온 사용자에게만 자동으로 띄우고, 고급 도구 모달이 열려 있으면 닫힌 뒤에 시작한다.
+  const hydrated = useSyncExternalStore(subscribeNothing, () => true, () => false);
+  const tourSeen = labTourStore.useValue();
+  const [tourRequested, setTourRequested] = useState(false);
+  const tourOpen = hydrated && (tourRequested || (!tourSeen && !advanced.open));
   const [scriptId, setScriptId] = useState(SAMPLE_SCRIPT.id);
   const [fullscreen, setFullscreen] = useState(false);
 
@@ -212,6 +221,12 @@ export default function LabView() {
   }, [undo, redo]);
 
   useEffect(() => {
+    if (!sideClosing) return;
+    const timer = setTimeout(() => setSideClosing(false), SIDE_TRANSITION_MS);
+    return () => clearTimeout(timer);
+  }, [sideClosing]);
+
+  useEffect(() => {
     const onChange = () => setFullscreen(document.fullscreenElement === rootRef.current);
     document.addEventListener("fullscreenchange", onChange);
     return () => document.removeEventListener("fullscreenchange", onChange);
@@ -231,13 +246,20 @@ export default function LabView() {
     a.click();
   };
 
-  const openDock = (tab: DockTab) =>
-    setDock((d) => ({ tab, size: d.size === "closed" ? "half" : d.size, visited: d.visited.includes(tab) ? d.visited : [...d.visited, tab] }));
+  const openAdvanced = (tab: AdvancedTab) => setAdvanced((a) => ({ open: true, tab, visited: a.visited.includes(tab) ? a.visited : [...a.visited, tab] }));
 
-  const openSide = (tab: SideTab) => setSide(side === tab ? null : tab);
+  const toggleSide = (open: boolean) => {
+    if (!open && sideOpen) setSideClosing(true);
+    setSideOpen(open);
+  };
+  const openSide = (tab: SideTab) => {
+    setSideTab(tab);
+    toggleSide(side !== tab);
+  };
 
   const focusSearch = () => {
-    setSide("market");
+    setSideTab("market");
+    toggleSide(true);
     requestAnimationFrame(() => searchRef.current?.focus());
   };
 
@@ -247,10 +269,21 @@ export default function LabView() {
   const range = token?.high24h && token.low24h && price ? Math.min(1, Math.max(0, (price - token.low24h) / (token.high24h - token.low24h))) : null;
   const status = feed?.symbol === symbol ? feed.status : "loading";
 
+  const intervalLabel = INTERVALS.find((i) => i.key === activePane.interval)?.label ?? activePane.interval;
+  const quote = price !== undefined ? ` · ${formatQuote(price)} (${change > 0 ? "+" : ""}${change.toFixed(2)}%)` : "";
+  const sharePayload: SharePayload = {
+    heading: `${visible.length > 1 ? `${activeIndex + 1}번 차트 · ` : ""}${symbol} ${intervalLabel}봉 공유`,
+    title: `${symbol}/USDT ${intervalLabel}봉 차트 | Space DEX`,
+    text: `${symbol}/USDT ${intervalLabel}봉 차트${quote}`,
+    path: `/lab?${new URLSearchParams({ symbol, interval: activePane.interval })}`,
+    fileName: `${symbol}-${activePane.interval}-chart`,
+    image: () => paneRefs.current[activeIndex]?.screenshot() ?? null,
+  };
+
   return (
-    <Terminal ref={rootRef} $side={side !== null} $fullscreen={fullscreen}>
+    <Terminal ref={rootRef} $side={sideOpen} $animate={sideChoice !== undefined} $fullscreen={fullscreen}>
       <TopBar>
-        <SymbolButton type="button" onClick={focusSearch} aria-label="종목 바꾸기">
+        <SymbolButton type="button" onClick={focusSearch} aria-label="종목 바꾸기" data-tour="symbol">
           {token && <TokenIcon symbol={token.symbol} color={token.color} image={token.image} size={26} />}
           <span>
             <strong>{symbol}</strong>
@@ -292,12 +325,15 @@ export default function LabView() {
           </Stat>
         </Stats>
         <TopActions>
+          <GuideButton type="button" onClick={() => setTourRequested(true)} data-tour="guide">
+            사용 가이드
+          </GuideButton>
           <Link href={`/trade/${symbol}`}>코인 상세로 →</Link>
         </TopActions>
       </TopBar>
 
       <ChartBar>
-        <Group role="group" aria-label="시간봉">
+        <Group role="group" aria-label="시간봉" data-tour="interval">
           {INTERVALS.map((i) => (
             <Chip key={i.key} type="button" $active={activePane.interval === i.key} onClick={() => updateActive({ interval: i.key })}>
               {i.label}
@@ -305,100 +341,104 @@ export default function LabView() {
           ))}
         </Group>
         <Divider />
-        <Dropdown
-          label="보조지표"
-          trigger={() => (
-            <>
-              <IndicatorIcon size={16} /> 지표 <ChevronDown />
-            </>
-          )}
-        >
-          {() => (
-            <>
-              <MenuLabel>{activeIndex + 1}번 차트 보조지표</MenuLabel>
-              {INDICATOR_OPTIONS.map((o) => (
-                <MenuItem key={o.key} type="button" onClick={() => updateActive({ indicators: { ...activePane.indicators, [o.key]: !activePane.indicators[o.key] } })}>
-                  <MenuCheck $on={activePane.indicators[o.key]}>{activePane.indicators[o.key] ? "✓" : ""}</MenuCheck>
-                  {o.label}
-                </MenuItem>
-              ))}
-            </>
-          )}
-        </Dropdown>
-        <Dropdown
-          label="내 지표·전략"
-          trigger={() => (
-            <>
-              <CodeIcon size={16} /> {activeScript ? activeScript.name : "내 지표·전략"} <ChevronDown />
-            </>
-          )}
-        >
-          {(close) => (
-            <>
-              <MenuLabel>Pine으로 만든 지표·전략</MenuLabel>
-              <MenuItem
-                type="button"
-                $active={!activePane.scriptId}
-                onClick={() => {
-                  updateActive({ scriptId: null });
-                  close();
-                }}
-              >
-                표시 안 함
-              </MenuItem>
-              {scripts.map((s) => (
+        <Group data-tour="indicators">
+          <Dropdown
+            label="보조지표"
+            trigger={() => (
+              <>
+                <IndicatorIcon size={16} /> 지표 <ChevronDown />
+              </>
+            )}
+          >
+            {() => (
+              <>
+                <MenuLabel>{activeIndex + 1}번 차트 보조지표</MenuLabel>
+                {INDICATOR_OPTIONS.map((o) => (
+                  <MenuItem key={o.key} type="button" onClick={() => updateActive({ indicators: { ...activePane.indicators, [o.key]: !activePane.indicators[o.key] } })}>
+                    <MenuCheck $on={activePane.indicators[o.key]}>{activePane.indicators[o.key] ? "✓" : ""}</MenuCheck>
+                    {o.label}
+                  </MenuItem>
+                ))}
+              </>
+            )}
+          </Dropdown>
+          <Dropdown
+            label="내 지표·전략"
+            trigger={() => (
+              <>
+                <CodeIcon size={16} /> {activeScript ? activeScript.name : "내 지표·전략"} <ChevronDown />
+              </>
+            )}
+          >
+            {(close) => (
+              <>
+                <MenuLabel>Pine으로 만든 지표·전략</MenuLabel>
                 <MenuItem
-                  key={s.id}
                   type="button"
-                  $active={activePane.scriptId === s.id}
+                  $active={!activePane.scriptId}
                   onClick={() => {
-                    updateActive({ scriptId: s.id });
+                    updateActive({ scriptId: null });
                     close();
                   }}
                 >
-                  {s.name}
-                  <small>{s.kind === "strategy" ? "전략" : "지표"}</small>
+                  표시 안 함
                 </MenuItem>
-              ))}
-              <MenuDivider />
-              <MenuItem
-                type="button"
-                onClick={() => {
-                  openDock("pine");
+                {scripts.map((s) => (
+                  <MenuItem
+                    key={s.id}
+                    type="button"
+                    $active={activePane.scriptId === s.id}
+                    onClick={() => {
+                      updateActive({ scriptId: s.id });
+                      close();
+                    }}
+                  >
+                    {s.name}
+                    <small>{s.kind === "strategy" ? "전략" : "지표"}</small>
+                  </MenuItem>
+                ))}
+                <MenuDivider />
+                <MenuItem
+                  type="button"
+                  onClick={() => {
+                    openAdvanced("pine");
+                    close();
+                  }}
+                >
+                  + Pine 편집기에서 새로 만들기
+                </MenuItem>
+              </>
+            )}
+          </Dropdown>
+        </Group>
+        <Divider />
+        <Group data-tour="layout">
+          <Dropdown
+            label="화면 분할"
+            panel
+            trigger={() => (
+              <>
+                <LayoutIcon count={visible.length} size={16} /> 화면 분할 {visible.length > 1 && <Badge>{visible.length}</Badge>} <ChevronDown />
+              </>
+            )}
+          >
+            {(close) => (
+              <SplitPicker
+                initial={visible.map((p) => p.symbol)}
+                onCancel={close}
+                onApply={(symbols) => {
+                  applySplit(symbols);
                   close();
                 }}
-              >
-                + Pine 편집기에서 새로 만들기
-              </MenuItem>
-            </>
-          )}
-        </Dropdown>
-        <Divider />
-        <Dropdown
-          label="화면 분할"
-          panel
-          trigger={() => (
-            <>
-              <LayoutIcon count={visible.length} size={16} /> 화면 분할 {visible.length > 1 && <Badge>{visible.length}</Badge>} <ChevronDown />
-            </>
-          )}
-        >
-          {(close) => (
-            <SplitPicker
-              initial={visible.map((p) => p.symbol)}
-              onCancel={close}
-              onApply={(symbols) => {
-                applySplit(symbols);
-                close();
-              }}
-            />
-          )}
-        </Dropdown>
-        <BarButton type="button" onClick={saveLayout} disabled={!dirty} title={workspace.savedAt ? `${new Date(workspace.savedAt).toLocaleString("ko-KR")} 저장됨` : "아직 저장하지 않았어요"}>
-          <SaveIcon size={16} />
-          레이아웃 저장
-          {dirty && <Dot />}
-        </BarButton>
+              />
+            )}
+          </Dropdown>
+          <BarButton type="button" onClick={saveLayout} disabled={!dirty} title={workspace.savedAt ? `${new Date(workspace.savedAt).toLocaleString("ko-KR")} 저장됨` : "아직 저장하지 않았어요"}>
+            <SaveIcon size={16} />
+            레이아웃 저장
+            {dirty && <Dot />}
+          </BarButton>
+        </Group>
         <Clock>{now ? kstClock.format(now) : "--:--"} KST</Clock>
         <Spacer />
         <IconButton type="button" title="실행 취소 (⌘Z)" aria-label="실행 취소" onClick={undo} disabled={!symbolHistory?.past.length}>
@@ -407,15 +447,28 @@ export default function LabView() {
         <IconButton type="button" title="다시 실행 (⇧⌘Z)" aria-label="다시 실행" onClick={redo} disabled={!symbolHistory?.future.length}>
           <RedoIcon size={16} />
         </IconButton>
-        <IconButton type="button" title="차트 이미지 저장" aria-label="차트 이미지 저장" onClick={screenshot}>
-          <CameraIcon size={16} />
-        </IconButton>
-        <IconButton type="button" title={fullscreen ? "전체 화면 끝내기" : "전체 화면"} aria-label="전체 화면" onClick={toggleFullscreen}>
-          {fullscreen ? <ShrinkIcon size={16} /> : <ExpandIcon size={16} />}
-        </IconButton>
+        <Group data-tour="share">
+          <IconButton type="button" title="차트 이미지 저장" aria-label="차트 이미지 저장" onClick={screenshot}>
+            <CameraIcon size={16} />
+          </IconButton>
+          <Dropdown
+            label="차트 공유"
+            align="right"
+            trigger={() => (
+              <>
+                <ShareIcon size={16} /> 공유
+              </>
+            )}
+          >
+            {(close) => <ShareMenu payload={sharePayload} onDone={close} />}
+          </Dropdown>
+          <IconButton type="button" title={fullscreen ? "전체 화면 끝내기" : "전체 화면"} aria-label="전체 화면" onClick={toggleFullscreen}>
+            {fullscreen ? <ShrinkIcon size={16} /> : <ExpandIcon size={16} />}
+          </IconButton>
+        </Group>
       </ChartBar>
 
-      <Tools aria-label="작도 도구">
+      <Tools aria-label="작도 도구" data-tour="draw">
         {DRAW_TOOLS.map((t) => (
           <ToolButton key={t.key} type="button" title={t.label} aria-label={t.label} aria-pressed={tool === t.key} onClick={() => setTool(t.key)} disabled={hideDrawings && t.key !== "none"}>
             {t.icon}
@@ -431,7 +484,7 @@ export default function LabView() {
       </Tools>
 
       <Center>
-        <Grid $count={visible.length} $hidden={dock.size === "max"}>
+        <Grid $count={visible.length} data-tour="chart">
           {visible.map((pane, i) => (
             <ChartPane
               key={pane.id}
@@ -449,90 +502,69 @@ export default function LabView() {
             />
           ))}
         </Grid>
-
-        <Dock $size={dock.size}>
-          <DockBar>
-            {DOCK_TABS.map((t) => (
-              <DockTabButton
-                key={t.key}
-                type="button"
-                $active={dock.size !== "closed" && dock.tab === t.key}
-                onClick={() => (dock.size !== "closed" && dock.tab === t.key ? setDock((d) => ({ ...d, size: "closed" })) : openDock(t.key))}
-              >
-                {t.icon}
-                {t.label}
-              </DockTabButton>
-            ))}
-            <Spacer />
-            {dock.size !== "closed" && (
-              <>
-                <IconButton type="button" title={dock.size === "max" ? "차트와 함께 보기" : "패널 크게 보기"} aria-label="패널 크기" onClick={() => setDock((d) => ({ ...d, size: d.size === "max" ? "half" : "max" }))}>
-                  {dock.size === "max" ? <ShrinkIcon size={16} /> : <ExpandIcon size={16} />}
-                </IconButton>
-                <IconButton type="button" title="패널 닫기" aria-label="패널 닫기" onClick={() => setDock((d) => ({ ...d, size: "closed" }))}>
-                  <CloseIcon />
-                </IconButton>
-              </>
-            )}
-          </DockBar>
-          {dock.size !== "closed" && (
-            <DockBody>
-              {dock.visited.includes("pine") && (
-                <DockPage hidden={dock.tab !== "pine"}>
-                  <PineLab
-                    symbol={symbol}
-                    interval={activePane.interval}
-                    onBacktest={(id) => {
-                      setScriptId(id);
-                      openDock("backtest");
-                    }}
-                  />
-                </DockPage>
-              )}
-              {dock.visited.includes("backtest") && (
-                <DockPage hidden={dock.tab !== "backtest"}>
-                  <BacktestLab
-                    symbol={symbol}
-                    interval={activePane.interval}
-                    scriptId={scriptId}
-                    onScriptChange={setScriptId}
-                    onMarketChange={(s, i) => updateActive({ symbol: s, interval: i })}
-                    onReplay={() => openDock("replay")}
-                  />
-                </DockPage>
-              )}
-              {dock.visited.includes("replay") && (
-                <DockPage hidden={dock.tab !== "replay"}>
-                  <ReplayLab symbol={symbol} interval={activePane.interval} scriptId={scriptId} />
-                </DockPage>
-              )}
-            </DockBody>
-          )}
-        </Dock>
       </Center>
 
-      {side && (
-        <Side>
-          {side === "market" && <MarketPanel active={symbol} onSelect={(s) => updateActive({ symbol: s })} searchRef={searchRef} />}
-          {side === "depth" && (token ? <MarketDepth token={token} plain /> : <SideEmpty>시세 정보가 없는 종목이에요.</SideEmpty>)}
-          {side === "news" && <NewsPanel />}
-        </Side>
-      )}
+      <AdvancedModal
+        open={advanced.open}
+        tab={advanced.tab}
+        onTabChange={openAdvanced}
+        onClose={() => setAdvanced((a) => ({ ...a, open: false }))}
+        pages={{
+          pine: advanced.visited.includes("pine") && (
+            <PineLab
+              symbol={symbol}
+              interval={activePane.interval}
+              onBacktest={(id) => {
+                setScriptId(id);
+                openAdvanced("backtest");
+              }}
+            />
+          ),
+          backtest: advanced.visited.includes("backtest") && (
+            <BacktestLab
+              symbol={symbol}
+              interval={activePane.interval}
+              scriptId={scriptId}
+              onScriptChange={setScriptId}
+              onMarketChange={(s, i) => updateActive({ symbol: s, interval: i })}
+              onReplay={() => openAdvanced("replay")}
+            />
+          ),
+          replay: advanced.visited.includes("replay") && <ReplayLab symbol={symbol} interval={activePane.interval} scriptId={scriptId} />,
+        }}
+      />
+
+      {tourOpen && <LabTour onClose={() => setTourRequested(false)} />}
+
+      <Side $open={sideOpen} $animate={sideChoice !== undefined}>
+        <SideHandle type="button" aria-expanded={sideOpen} aria-label={sideOpen ? "패널 접기" : "패널 펼치기"} title={sideOpen ? "패널 접기" : "패널 펼치기"} onClick={() => toggleSide(!sideOpen)}>
+          {sideOpen ? <ChevronRight /> : <ChevronLeft />}
+        </SideHandle>
+        <SideClip $open={sideOpen} inert={!sideOpen}>
+          {(sideOpen || sideClosing) && (
+            <SideBody>
+              {sideTab === "market" && <MarketPanel active={symbol} onSelect={(s) => updateActive({ symbol: s })} searchRef={searchRef} />}
+              {sideTab === "depth" && (token ? <MarketDepth token={token} plain /> : <SideEmpty>시세 정보가 없는 종목이에요.</SideEmpty>)}
+              {sideTab === "news" && <NewsPanel />}
+            </SideBody>
+          )}
+        </SideClip>
+      </Side>
 
       <Rail aria-label="패널">
-        {SIDE_TABS.map((t) => (
-          <RailButton key={t.key} type="button" aria-pressed={side === t.key} onClick={() => openSide(t.key)}>
-            {t.icon}
-            <span>{t.label}</span>
-          </RailButton>
-        ))}
+        <RailGroup data-tour="panels">
+          {SIDE_TABS.map((t) => (
+            <RailButton key={t.key} type="button" aria-pressed={side === t.key} onClick={() => openSide(t.key)}>
+              {t.icon}
+              <span>{t.label}</span>
+            </RailButton>
+          ))}
+        </RailGroup>
         <RailDivider />
-        {DOCK_TABS.map((t) => (
-          <RailButton key={t.key} type="button" aria-pressed={dock.size !== "closed" && dock.tab === t.key} onClick={() => openDock(t.key)}>
-            {t.icon}
-            <span>{t.key === "pine" ? "Pine" : t.key === "backtest" ? "백테스트" : "리플레이"}</span>
-          </RailButton>
-        ))}
+        <RailButton data-tour="advanced" type="button" aria-haspopup="dialog" aria-expanded={advanced.open} title="Pine 편집기 · 전략 테스터 · 리플레이 연습" onClick={() => openAdvanced(advanced.tab)}>
+          <SlidersIcon />
+          <span>고급</span>
+        </RailButton>
       </Rail>
 
       <Ticker>
@@ -564,9 +596,10 @@ export default function LabView() {
   );
 }
 
-const Terminal = styled.div<{ $side: boolean; $fullscreen: boolean }>`
+const Terminal = styled.div<{ $side: boolean; $animate: boolean; $fullscreen: boolean }>`
   display: grid;
-  grid-template-columns: 44px minmax(0, 1fr) ${({ $side }) => ($side ? "320px" : "0")} 56px;
+  grid-template-columns: 44px minmax(0, 1fr) ${({ $side }) => ($side ? `${SIDE_WIDTH}px` : "0px")} 56px;
+  ${({ $animate }) => $animate && `transition: grid-template-columns ${SIDE_TRANSITION_MS}ms ease;`}
   grid-template-rows: auto auto minmax(0, 1fr) 30px;
   grid-template-areas:
     "top top top rail"
@@ -724,13 +757,31 @@ const RangeBar = styled.div`
 `;
 
 const TopActions = styled.div`
+  display: flex;
   flex-shrink: 0;
+  align-items: center;
+  gap: 12px;
   margin-left: auto;
 
   a {
     font-size: 13px;
     font-weight: 600;
     color: ${({ theme }) => theme.colors.primary};
+  }
+`;
+
+const GuideButton = styled.button`
+  height: 28px;
+  padding: 0 10px;
+  border-radius: ${({ theme }) => theme.radius.full};
+  background: ${({ theme }) => theme.colors.surface};
+  font-size: 12px;
+  font-weight: 600;
+  color: ${({ theme }) => theme.colors.textSub};
+
+  &:hover {
+    background: ${({ theme }) => theme.colors.surfaceHover};
+    color: ${({ theme }) => theme.colors.text};
   }
 `;
 
@@ -906,8 +957,8 @@ const Badge = styled.span`
   font-weight: 700;
 `;
 
-const Grid = styled.div<{ $count: number; $hidden: boolean }>`
-  display: ${({ $hidden }) => ($hidden ? "none" : "grid")};
+const Grid = styled.div<{ $count: number }>`
+  display: grid;
   ${({ $count }) => GRID_TEMPLATES[$count] ?? GRID_TEMPLATES[1]}
   flex: 1;
   gap: 1px;
@@ -915,62 +966,12 @@ const Grid = styled.div<{ $count: number; $hidden: boolean }>`
   background: ${({ theme }) => theme.colors.border};
 `;
 
-const Dock = styled.section<{ $size: DockSize }>`
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-  border-top: 1px solid ${({ theme }) => theme.colors.border};
-  ${({ $size }) => ($size === "half" ? "height: 48%;" : $size === "max" ? "flex: 1;" : "")}
-`;
-
-const DockBar = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  height: 38px;
-  flex-shrink: 0;
-  padding: 0 8px;
-  background: ${({ theme }) => theme.colors.bg};
-`;
-
-const DockTabButton = styled.button<{ $active: boolean }>`
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  height: 30px;
-  padding: 0 10px;
-  border-radius: 6px;
-  font-size: 13px;
-  font-weight: 700;
-  color: ${({ theme, $active }) => ($active ? theme.colors.primary : theme.colors.textSub)};
-  background: ${({ theme, $active }) => ($active ? theme.colors.primaryWeak : "transparent")};
-
-  &:hover {
-    background: ${({ theme, $active }) => ($active ? theme.colors.primaryWeak : theme.colors.surface)};
-  }
-`;
-
-const DockBody = styled.div`
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
-  padding: 16px;
-  border-top: 1px solid ${({ theme }) => theme.colors.border};
-  background: ${({ theme }) => theme.colors.bgSub};
-`;
-
-const DockPage = styled.div`
-  &[hidden] {
-    display: none;
-  }
-`;
-
-const Side = styled.aside`
+const Side = styled.aside<{ $open: boolean; $animate: boolean }>`
   grid-area: side;
+  position: relative;
+  z-index: 5;
   min-width: 0;
   min-height: 0;
-  overflow-y: auto;
-  border-left: 1px solid ${({ theme }) => theme.colors.border};
 
   @container main (max-width: 900px) {
     grid-area: auto;
@@ -979,9 +980,48 @@ const Side = styled.aside`
     right: 56px;
     bottom: 30px;
     z-index: 20;
-    width: min(320px, calc(100% - 56px));
+    width: ${({ $open }) => ($open ? `min(${SIDE_WIDTH}px, calc(100% - 56px))` : "0px")};
     background: ${({ theme }) => theme.colors.bg};
-    box-shadow: ${({ theme }) => theme.shadow.popover};
+    box-shadow: ${({ theme, $open }) => ($open ? theme.shadow.popover : "none")};
+    ${({ $animate }) => $animate && `transition: width ${SIDE_TRANSITION_MS}ms ease;`}
+  }
+`;
+
+const SideHandle = styled.button`
+  position: absolute;
+  top: 50%;
+  right: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 52px;
+  transform: translateY(-50%);
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  border-right: none;
+  border-radius: 8px 0 0 8px;
+  background: ${({ theme }) => theme.colors.bg};
+  color: ${({ theme }) => theme.colors.textSub};
+
+  &:hover {
+    background: ${({ theme }) => theme.colors.surface};
+    color: ${({ theme }) => theme.colors.text};
+  }
+`;
+
+const SideClip = styled.div<{ $open: boolean }>`
+  height: 100%;
+  overflow: hidden;
+  border-left: ${({ theme, $open }) => ($open ? `1px solid ${theme.colors.border}` : "none")};
+`;
+
+const SideBody = styled.div`
+  width: ${SIDE_WIDTH}px;
+  height: 100%;
+  overflow-y: auto;
+
+  @container main (max-width: 900px) {
+    width: min(${SIDE_WIDTH}px, calc(100cqw - 56px));
   }
 `;
 
@@ -1026,6 +1066,12 @@ const RailButton = styled.button`
     color: ${({ theme }) => theme.colors.primary};
     background: ${({ theme }) => theme.colors.primaryWeak};
   }
+`;
+
+const RailGroup = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 `;
 
 const RailDivider = styled.hr`

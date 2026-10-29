@@ -101,6 +101,14 @@ export const ReplayIcon = (p: IconProps) => (
     <path d="M3 3v5h5M10 9l5 3-5 3Z" />
   </Svg>
 );
+export const SlidersIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1" />
+    <circle cx="15" cy="6" r="2" />
+    <circle cx="9" cy="12" r="2" />
+    <circle cx="17" cy="18" r="2" />
+  </Svg>
+);
 export const ListIcon = (p: IconProps) => (
   <Svg {...p}>
     <path d="M8 6h13M8 12h13M8 18h13M3.5 6h.01M3.5 12h.01M3.5 18h.01" />
@@ -150,5 +158,46 @@ export const SaveIcon = (p: IconProps) => (
   <Svg {...p}>
     <path d="M5 4h11l3 3v13H5Z" />
     <path d="M8 4v5h7V4M8 20v-6h8v6" />
+  </Svg>
+);
+export const ChevronRight = (p: IconProps) => (
+  <Svg {...p} size={p.size ?? 14}>
+    <path d="m9 6 6 6-6 6" />
+  </Svg>
+);
+export const ChevronLeft = (p: IconProps) => (
+  <Svg {...p} size={p.size ?? 14}>
+    <path d="m15 6-6 6 6 6" />
+  </Svg>
+);
+export const ShareIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <circle cx="18" cy="5" r="2.5" />
+    <circle cx="6" cy="12" r="2.5" />
+    <circle cx="18" cy="19" r="2.5" />
+    <path d="m8.2 10.8 7.6-4.5M8.2 13.2l7.6 4.5" />
+  </Svg>
+);
+export const LinkIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M10 14a4.5 4.5 0 0 0 6.4 0l3-3a4.5 4.5 0 0 0-6.4-6.4l-1 1" />
+    <path d="M14 10a4.5 4.5 0 0 0-6.4 0l-3 3a4.5 4.5 0 0 0 6.4 6.4l1-1" />
+  </Svg>
+);
+export const MailIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <rect x="3" y="5" width="18" height="14" rx="2" />
+    <path d="m3.5 6.5 8.5 6.5 8.5-6.5" />
+  </Svg>
+);
+export const MessageIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M4 5h16v11H9l-5 4Z" />
+  </Svg>
+);
+export const SendIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M21 3 3 10.5l7 2.5 2.5 7Z" />
+    <path d="m10 13 4.5-4.5" />
   </Svg>
 );
