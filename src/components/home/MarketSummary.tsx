@@ -41,16 +41,20 @@ const Title = styled.h2`
 
 const Grid = styled.div`
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 12px;
 
-  @media (max-width: 900px) {
-    grid-template-columns: repeat(2, 1fr);
+  @container main (max-width: 760px) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 `;
 
 const Card = styled.div`
   padding: 20px;
+
+  @container main (max-width: 420px) {
+    padding: 16px;
+  }
   border-radius: ${({ theme }) => theme.radius.lg};
   background: ${({ theme }) => theme.colors.surface};
   transition: background 0.15s;
@@ -69,11 +73,21 @@ const Value = styled.p`
   margin-top: 6px;
   font-size: 22px;
   font-weight: 700;
+
+  @container main (max-width: 420px) {
+    font-size: 19px;
+  }
 `;
 
 const Bottom = styled.div`
   display: flex;
+  flex-wrap: wrap;
   align-items: flex-end;
   justify-content: space-between;
+  gap: 4px 8px;
   margin-top: 8px;
+
+  svg {
+    max-width: 100%;
+  }
 `;

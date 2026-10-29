@@ -11,6 +11,10 @@ export const Card = styled.section`
   border: 1px solid ${({ theme }) => theme.colors.border};
   border-radius: ${({ theme }) => theme.radius.lg};
   background: ${({ theme }) => theme.colors.bg};
+
+  @container main (max-width: 600px) {
+    padding: 14px;
+  }
 `;
 
 export const CardHeader = styled.div`
@@ -93,6 +97,8 @@ export const Input = styled.input`
 export const Select = styled.select`
   ${control}
   min-width: 0;
+  max-width: 100%;
+  text-overflow: ellipsis;
 `;
 
 export const TextArea = styled.textarea`

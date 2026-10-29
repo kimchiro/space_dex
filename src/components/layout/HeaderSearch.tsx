@@ -13,7 +13,8 @@ import { searchTokens } from "@/lib/tokenSearch";
 
 const MAX_RESULTS = 8;
 
-export default function HeaderSearch() {
+/** onClose: 좁은 화면에서 펼친 검색창처럼, 이동하거나 Esc를 누르면 닫혀야 할 때 넘긴다. */
+export default function HeaderSearch({ autoFocus = false, onClose }: { autoFocus?: boolean; onClose?: () => void }) {
   const router = useRouter();
   const { tokens } = useMarket();
   const recentSymbols = useRecentViewed();
@@ -49,6 +50,7 @@ export default function HeaderSearch() {
     setQuery("");
     setOpen(false);
     inputRef.current?.blur();
+    onClose?.();
   };
 
   const onKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
@@ -72,6 +74,7 @@ export default function HeaderSearch() {
       case "Escape":
         setOpen(false);
         inputRef.current?.blur();
+        onClose?.();
         break;
     }
   };
@@ -88,6 +91,7 @@ export default function HeaderSearch() {
         </SearchIcon>
         <input
           ref={inputRef}
+          autoFocus={autoFocus}
           value={query}
           placeholder="코인 이름, 심볼 검색"
           role="combobox"
@@ -162,12 +166,7 @@ export default function HeaderSearch() {
 
 const Wrapper = styled.div`
   position: relative;
-  flex: 1;
-  max-width: 420px;
-
-  @media (max-width: 1024px) {
-    display: none;
-  }
+  width: 100%;
 `;
 
 const Field = styled.label<{ $focused: boolean }>`

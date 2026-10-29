@@ -110,6 +110,13 @@ const Group = styled.div`
   display: flex;
   flex-wrap: wrap;
   gap: 4px;
+
+  @container main (max-width: 480px) {
+    flex-wrap: nowrap;
+    max-width: 100%;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
 `;
 
 const Divider = styled.span`
@@ -127,9 +134,14 @@ const Chip = styled.button<{ $active: boolean }>`
   color: ${({ theme, $active }) => ($active ? theme.colors.text : theme.colors.textWeak)};
   background: ${({ theme, $active }) => ($active ? theme.colors.surface : "transparent")};
   white-space: nowrap;
+  flex-shrink: 0;
 
   &:hover {
     background: ${({ theme }) => theme.colors.surface};
+  }
+
+  @container main (max-width: 480px) {
+    padding: 0 8px;
   }
 `;
 

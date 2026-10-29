@@ -15,21 +15,23 @@ const navItems = [
   { href: "/portfolio", label: "내 지갑", match: (p: string) => p.startsWith("/portfolio") },
 ];
 
-export default function Header() {
+/** fluid: 화면 전체를 쓰는 페이지에서 본문과 같은 너비·여백으로 맞춘다. */
+export default function Header({ fluid = false }: { fluid?: boolean }) {
   const pathname = usePathname();
   const [chain, setChain] = useState(chains[0]);
   const [chainOpen, setChainOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
 
   return (
     <Wrapper>
-      <Inner>
+      <Inner $fluid={fluid}>
         <MainArea>
           <Left>
             <Logo href="/">
               <LogoMark>S</LogoMark>
               <span>Space DEX</span>
             </Logo>
-            <Nav>
+            <Nav aria-label="주요 메뉴">
               {navItems.map((item) => (
                 <NavLink key={item.href} href={item.href} $active={item.match(pathname)}>
                   {item.label}
@@ -38,14 +40,28 @@ export default function Header() {
             </Nav>
           </Left>
 
-          <HeaderSearch />
+          <DesktopSearch>
+            <HeaderSearch />
+          </DesktopSearch>
         </MainArea>
 
         <Right>
+          <SearchToggle type="button" aria-label={searchOpen ? "검색 닫기" : "코인 검색"} aria-expanded={searchOpen} onClick={() => setSearchOpen((v) => !v)}>
+            <svg viewBox="0 0 24 24" aria-hidden>
+              {searchOpen ? (
+                <path d="M6 6l12 12M18 6L6 18" />
+              ) : (
+                <>
+                  <circle cx="11" cy="11" r="7" />
+                  <path d="M20 20l-3.5-3.5" />
+                </>
+              )}
+            </svg>
+          </SearchToggle>
           <ChainSelector>
-            <ChainButton onClick={() => setChainOpen((v) => !v)}>
+            <ChainButton aria-label={`네트워크: ${chain}`} onClick={() => setChainOpen((v) => !v)}>
               <ChainDot />
-              {chain}
+              <ChainName>{chain}</ChainName>
               <Caret $open={chainOpen}>▾</Caret>
             </ChainButton>
             {chainOpen && (
@@ -69,28 +85,153 @@ export default function Header() {
           <ConnectButton>지갑 연결</ConnectButton>
         </Right>
       </Inner>
+
+      {searchOpen && (
+        <SearchRow $fluid={fluid}>
+          <HeaderSearch autoFocus onClose={() => setSearchOpen(false)} />
+        </SearchRow>
+      )}
+
+      <MobileNav aria-label="주요 메뉴" $fluid={fluid}>
+        {navItems.map((item) => (
+          <MobileNavLink key={item.href} href={item.href} $active={item.match(pathname)} aria-current={item.match(pathname) ? "page" : undefined}>
+            {item.label}
+          </MobileNavLink>
+        ))}
+      </MobileNav>
     </Wrapper>
   );
 }
+
+// 메뉴가 한 줄에 들어가지 않는 폭부터 메뉴를 둘째 줄로, 검색창이 들어갈 자리가 없는 폭부터 검색을 아이콘으로 바꾼다.
+const NAV_ROW = "(max-width: 900px)";
+const SEARCH_ICON = "(max-width: 1100px)";
+const SMALL = "(max-width: 420px)";
+
+const gutter = ({ $fluid }: { $fluid: boolean }) => ($fluid ? "16px" : "24px");
 
 const Wrapper = styled.header`
   position: sticky;
   top: 0;
   z-index: 100;
-  height: ${({ theme }) => theme.layout.headerHeight};
   background: rgba(255, 255, 255, 0.92);
   backdrop-filter: blur(12px);
   border-bottom: 1px solid ${({ theme }) => theme.colors.border};
 `;
 
-const Inner = styled.div`
+const Inner = styled.div<{ $fluid: boolean }>`
   display: flex;
   align-items: center;
   gap: 24px;
-  height: 100%;
-  max-width: ${({ theme }) => theme.layout.maxWidth};
+  height: ${({ theme }) => theme.layout.headerHeight};
+  max-width: ${({ theme, $fluid }) => ($fluid ? "none" : theme.layout.maxWidth)};
   margin: 0 auto;
-  padding: 0 24px;
+  padding: 0 ${gutter};
+
+  @media ${NAV_ROW} {
+    height: 56px;
+    gap: 12px;
+  }
+
+  @media ${SMALL} {
+    padding: 0 16px;
+  }
+`;
+
+const DesktopSearch = styled.div`
+  flex: 1;
+  max-width: 420px;
+
+  @media ${SEARCH_ICON} {
+    display: none;
+  }
+`;
+
+const SearchToggle = styled.button`
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: ${({ theme }) => theme.radius.sm};
+  color: ${({ theme }) => theme.colors.textSub};
+
+  svg {
+    width: 20px;
+    height: 20px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+  }
+
+  &:hover,
+  &[aria-expanded="true"] {
+    background: ${({ theme }) => theme.colors.surface};
+    color: ${({ theme }) => theme.colors.text};
+  }
+
+  @media ${SEARCH_ICON} {
+    display: inline-flex;
+  }
+`;
+
+const SearchRow = styled.div<{ $fluid: boolean }>`
+  display: none;
+  max-width: ${({ theme, $fluid }) => ($fluid ? "none" : theme.layout.maxWidth)};
+  margin: 0 auto;
+  padding: 0 ${gutter} 12px;
+
+  @media ${SEARCH_ICON} {
+    display: block;
+  }
+
+  @media ${SMALL} {
+    padding: 0 16px 12px;
+  }
+`;
+
+const MobileNav = styled.nav<{ $fluid: boolean }>`
+  display: none;
+  gap: 4px;
+  max-width: ${({ theme, $fluid }) => ($fluid ? "none" : theme.layout.maxWidth)};
+  margin: 0 auto;
+  padding: 0 ${gutter};
+  overflow-x: auto;
+  scrollbar-width: none;
+
+  &::-webkit-scrollbar {
+    display: none;
+  }
+
+  @media ${NAV_ROW} {
+    display: flex;
+  }
+
+  @media ${SMALL} {
+    padding: 0 8px;
+  }
+`;
+
+const MobileNavLink = styled(Link)<{ $active: boolean }>`
+  position: relative;
+  flex-shrink: 0;
+  padding: 10px 10px 12px;
+  font-size: 15px;
+  font-weight: ${({ $active }) => ($active ? 700 : 500)};
+  color: ${({ theme, $active }) => ($active ? theme.colors.text : theme.colors.textWeak)};
+  white-space: nowrap;
+
+  &::after {
+    content: "";
+    position: absolute;
+    right: 10px;
+    bottom: 0;
+    left: 10px;
+    height: 2px;
+    border-radius: 1px;
+    background: ${({ theme, $active }) => ($active ? theme.colors.text : "transparent")};
+  }
 `;
 
 const MainArea = styled.div`
@@ -134,7 +275,7 @@ const Nav = styled.nav`
   display: flex;
   gap: 4px;
 
-  @media (max-width: 768px) {
+  @media ${NAV_ROW} {
     display: none;
   }
 `;
@@ -162,8 +303,18 @@ const Right = styled.div`
   gap: 8px;
   width: ${({ theme }) => theme.layout.sidebarWidth};
 
-  @media (max-width: 1100px) {
+  @media ${SEARCH_ICON} {
     width: auto;
+  }
+
+  @media ${SMALL} {
+    gap: 4px;
+  }
+`;
+
+const ChainName = styled.span`
+  @media ${SMALL} {
+    display: none;
   }
 `;
 
@@ -185,6 +336,10 @@ const ChainButton = styled.button`
 
   &:hover {
     background: ${({ theme }) => theme.colors.surface};
+  }
+
+  @media ${SMALL} {
+    padding: 0 8px;
   }
 `;
 
@@ -239,5 +394,10 @@ const ConnectButton = styled.button`
 
   &:hover {
     background: ${({ theme }) => theme.colors.primaryHover};
+  }
+
+  @media ${SMALL} {
+    padding: 0 12px;
+    font-size: 13px;
   }
 `;

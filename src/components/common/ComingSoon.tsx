@@ -20,8 +20,15 @@ const Wrapper = styled.div`
   justify-content: center;
   gap: 8px;
   min-height: 480px;
+  padding: 32px 20px;
   border-radius: ${({ theme }) => theme.radius.lg};
   background: ${({ theme }) => theme.colors.bgSub};
+  text-align: center;
+  word-break: keep-all;
+
+  @container main (max-width: 480px) {
+    min-height: 360px;
+  }
 `;
 
 const Title = styled.h1`

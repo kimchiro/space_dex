@@ -19,8 +19,8 @@ export default function AppShell({
 
   return (
     <Shell $fullscreen={fullscreen}>
-      <Header />
-      <NoticeBanner />
+      <Header fluid={fullscreen} />
+      <NoticeBanner flush={fullscreen} />
       <Body $fullscreen={fullscreen}>
         <Main>{children}</Main>
         {!fullscreen && <RightSidebar news={news} />}
@@ -47,14 +47,19 @@ const Body = styled.div<{ $fullscreen: boolean }>`
   padding: 24px;
 
   ${({ $fullscreen }) =>
-    $fullscreen &&
-    css`
-      flex: 1;
-      width: 100%;
-      max-width: none;
-      min-height: 0;
-      padding: 0;
-    `}
+    $fullscreen
+      ? css`
+          flex: 1;
+          width: 100%;
+          max-width: none;
+          min-height: 0;
+          padding: 0;
+        `
+      : css`
+          @media (max-width: 420px) {
+            padding: 20px 16px;
+          }
+        `}
 `;
 
 const Main = styled.main`

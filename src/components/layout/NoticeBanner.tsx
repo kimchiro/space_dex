@@ -11,13 +11,14 @@ const notice = {
   href: "/",
 };
 
-export default function NoticeBanner() {
+/** flush: 화면 전체를 쓰는 페이지에서 본문과 같은 너비·여백으로 맞추고, 본문에 여백이 없으므로 아래 간격까지 직접 갖는다. */
+export default function NoticeBanner({ flush = false }: { flush?: boolean }) {
   const [open, setOpen] = useState(true);
 
   if (!open) return null;
 
   return (
-    <Wrapper>
+    <Wrapper $flush={flush}>
       <Banner role="status">
         <Badge>{notice.label}</Badge>
         <Message>{notice.message}</Message>
@@ -32,10 +33,15 @@ export default function NoticeBanner() {
   );
 }
 
-const Wrapper = styled.div`
-  max-width: ${({ theme }) => theme.layout.maxWidth};
+const Wrapper = styled.div<{ $flush: boolean }>`
+  width: 100%;
+  max-width: ${({ theme, $flush }) => ($flush ? "none" : theme.layout.maxWidth)};
   margin: 0 auto;
-  padding: 16px 24px 0;
+  padding: ${({ $flush }) => ($flush ? "16px" : "16px 24px 0")};
+
+  @media (max-width: 420px) {
+    padding: ${({ $flush }) => ($flush ? "12px 16px" : "12px 16px 0")};
+  }
 `;
 
 const Banner = styled.div`
@@ -46,6 +52,17 @@ const Banner = styled.div`
   padding: 0 8px 0 16px;
   border-radius: ${({ theme }) => theme.radius.md};
   background: ${({ theme }) => theme.colors.primaryWeak};
+
+  @media (max-width: 420px) {
+    gap: 8px;
+    height: 48px;
+    padding: 0 4px 0 12px;
+
+    p,
+    a {
+      font-size: 13px;
+    }
+  }
 `;
 
 const Badge = styled.span`

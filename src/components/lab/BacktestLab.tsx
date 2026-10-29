@@ -695,6 +695,7 @@ const TwoCol = styled.div`
 
 const ModeSwitch = styled.div`
   display: inline-flex;
+  max-width: 100%;
   padding: 3px;
   border-radius: ${({ theme }) => theme.radius.sm};
   background: ${({ theme }) => theme.colors.surface};
@@ -707,6 +708,11 @@ const ModeSwitch = styled.div`
     font-weight: 600;
     color: ${({ theme }) => theme.colors.textWeak};
     white-space: nowrap;
+
+    @container main (max-width: 360px) {
+      padding: 0 8px;
+      font-size: 12px;
+    }
   }
 
   button[aria-pressed="true"] {
