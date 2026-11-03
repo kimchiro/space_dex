@@ -142,6 +142,12 @@ function PrivyBridge({ children, ...panel }: PanelProps) {
   }
 
   const selectAddress = useCallback((next: string) => selectedAddressStore.write(getAddress(next)), []);
+  const autoStarted = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (address || wallets.length !== 1) return;
+    selectAddress(wallets[0].address);
+  }, [address, wallets, selectAddress]);
 
   const lock = useCallback(() => {
     keyRef.current = null;
@@ -202,6 +208,13 @@ function PrivyBridge({ children, ...panel }: PanelProps) {
       setSetup({ status: "error", message: describeError(error) });
     }
   }, [wallet, address, account, setup.status, setSetup]);
+
+  useEffect(() => {
+    if (!wallet || !address || unlocked || setup.status !== "idle") return;
+    if (autoStarted.current === address) return;
+    autoStarted.current = address;
+    void connectAccount();
+  }, [wallet, address, unlocked, setup.status, connectAccount]);
 
   const signingKey = useCallback(() => (address && keyRef.current?.address === address ? keyRef.current.privateKey : null), [address]);
 

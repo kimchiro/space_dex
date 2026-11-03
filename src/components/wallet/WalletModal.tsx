@@ -3,16 +3,9 @@
 import { useEffect, useRef } from "react";
 import styled from "styled-components";
 import { BUILDER_FEE, EXTENDED_NETWORK, NETWORK } from "@/lib/extended/config";
-import { shortAddress, useWallet, walletLabel, type SetupStep } from "./context";
+import { shortAddress, useWallet, walletLabel } from "./context";
 import PreviousAccountNotice from "./PreviousAccountNotice";
-import { Desc, ErrorText, Facts, Ghost, Primary, Row, Section, Title } from "./ui";
-
-const STEPS: { key: SetupStep; label: string; hint: string }[] = [
-  { key: "derive", label: "Stark 키 만들기", hint: "AccountCreation 서명으로 이 기기에서만 키를 만들어요" },
-  { key: "register", label: "Extended 계정 등록", hint: "AccountRegistration 서명과 Stark 서명을 보내요" },
-  { key: "apiKey", label: "API 키 발급", hint: "조회용 API 키를 받기 위해 메시지에 서명해요" },
-  { key: "verify", label: "계정 확인", hint: "등록된 공개키와 vault가 일치하는지 확인해요" },
-];
+import { Desc, ErrorText, Ghost, Primary, Row, Section, Title } from "./ui";
 
 export default function WalletModal() {
   const wallet = useWallet();
@@ -94,7 +87,7 @@ function Content() {
             다른 지갑 연결
           </Ghost>
         </Row>
-        <Desc>주문과 계정 서명에 쓸 주소를 직접 골라 주세요.</Desc>
+        <Desc>거래에 쓸 지갑을 골라 주세요. 빌더 키는 회사가 넣고, 이 주소의 거래 계정은 지갑 서명으로 준비해요.</Desc>
         <WalletList role="radiogroup" aria-label="서명할 주소">
           {w.wallets.map((item) => {
             const checked = w.address?.toLowerCase() === item.address.toLowerCase();
@@ -128,66 +121,32 @@ function Content() {
 
 function AccountSection() {
   const w = useWallet();
-  const running = w.setup.status === "running" ? w.setup.step : null;
-  const activeIndex = running ? STEPS.findIndex((s) => s.key === running) : -1;
+  const running = w.setup.status === "running";
 
   if (w.unlocked && w.account) {
     return (
       <Section>
         <Row>
-          <Title>Extended 계정</Title>
+          <Title>거래 준비됨</Title>
           <Ghost type="button" onClick={w.lock}>
             잠그기
           </Ghost>
         </Row>
-        <Facts>
-          <div>
-            <dt>계정 ID</dt>
-            <dd>{w.account.accountId}</dd>
-          </div>
-          <div>
-            <dt>Vault</dt>
-            <dd>{w.account.vault}</dd>
-          </div>
-          <div>
-            <dt>Stark 공개키</dt>
-            <dd>{shortAddress(w.account.starkPublicKey)}</dd>
-          </div>
-          <div>
-            <dt>빌더 수수료</dt>
-            <dd>{Number(BUILDER_FEE) * 100}%</dd>
-          </div>
-        </Facts>
+        <Desc>이 지갑으로 주문할 수 있어요. 빌더 수수료는 {Number(BUILDER_FEE) * 100}%예요.</Desc>
       </Section>
     );
   }
 
-  const unlockOnly = Boolean(w.account);
   return (
     <Section>
-      <Title>{unlockOnly ? "서명으로 잠금 해제" : "Extended 계정 연결"}</Title>
-      <Desc>
-        {unlockOnly
-          ? "주문 서명 키는 저장하지 않아요. 같은 지갑으로 한 번 서명하면 이 기기에서 키를 다시 만들어요."
-          : "지갑 연결과 계정 생성은 별개예요. 아래 단계를 거쳐 Extended 계정을 만들거나 기존 계정을 불러와요."}
-      </Desc>
-      {!unlockOnly && (
-        <Steps>
-          {STEPS.map((step, i) => (
-            <StepItem key={step.key} $state={i < activeIndex ? "done" : i === activeIndex ? "active" : "todo"}>
-              <span aria-hidden>{i + 1}</span>
-              <div>
-                <strong>{step.label}</strong>
-                <small>{step.hint}</small>
-              </div>
-            </StepItem>
-          ))}
-        </Steps>
-      )}
+      <Title>{running ? "지갑 서명 확인 중" : "지갑 서명이 필요해요"}</Title>
+      <Desc>{running ? "지갑에 뜬 서명을 확인하면 이 주소로 주문할 수 있어요. API 키는 직접 발급하지 않아요." : "서명을 거절했으면 다시 시도해 주세요."}</Desc>
       {w.setup.status === "error" && <ErrorText role="alert">{w.setup.message}</ErrorText>}
-      <Primary type="button" disabled={Boolean(running)} onClick={w.connectAccount}>
-        {running ? `${STEPS[activeIndex]?.label ?? "진행"} 중…` : unlockOnly ? "서명하고 잠금 해제" : "Extended 계정 연결하기"}
-      </Primary>
+      {!running && (
+        <Primary type="button" onClick={w.connectAccount}>
+          다시 서명하기
+        </Primary>
+      )}
     </Section>
   );
 }
@@ -309,46 +268,6 @@ const Radio = styled.i<{ $checked: boolean }>`
   border: 2px solid ${({ theme, $checked }) => ($checked ? theme.colors.primary : theme.colors.textDisabled)};
   box-shadow: inset 0 0 0 3px ${({ theme }) => theme.colors.bg};
   background: ${({ theme, $checked }) => ($checked ? theme.colors.primary : "transparent")};
-`;
-
-const Steps = styled.ol`
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-`;
-
-const StepItem = styled.li<{ $state: "done" | "active" | "todo" }>`
-  display: flex;
-  gap: 10px;
-
-  > span {
-    flex-shrink: 0;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 22px;
-    height: 22px;
-    border-radius: 50%;
-    font-size: 12px;
-    font-weight: 700;
-    color: ${({ theme, $state }) => ($state === "todo" ? theme.colors.textWeak : "#fff")};
-    background: ${({ theme, $state }) => ($state === "done" ? "#0a8f6a" : $state === "active" ? theme.colors.primary : theme.colors.surface)};
-  }
-
-  div {
-    display: flex;
-    flex-direction: column;
-  }
-
-  strong {
-    font-size: 14px;
-    font-weight: 600;
-  }
-
-  small {
-    font-size: 12px;
-    color: ${({ theme }) => theme.colors.textWeak};
-  }
 `;
 
 const Footer = styled.footer`

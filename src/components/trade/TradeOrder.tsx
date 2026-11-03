@@ -172,7 +172,7 @@ export default function TradeOrder({ token }: { token: Token }) {
   };
 
   const actionLabel = side === "BUY" ? "구매하기" : "판매하기";
-  const buttonLabel = !wallet.address ? `지갑 연결 후 ${actionLabel}` : !wallet.unlocked ? `계정 연결 후 ${actionLabel}` : busy ? "서명하는 중…" : actionLabel;
+  const buttonLabel = !wallet.address ? `지갑 연결 후 ${actionLabel}` : wallet.setup.status === "running" ? "지갑 서명 확인 중…" : !wallet.unlocked ? `지갑 서명 후 ${actionLabel}` : busy ? "주문 서명 중…" : actionLabel;
 
   return (
     <Panel>

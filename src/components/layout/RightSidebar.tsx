@@ -75,9 +75,9 @@ export default function RightSidebar({ news }: { news: CryptoNews[] }) {
         {wallet.address ? (
           <>
             <WalletTitle>{shortAddress(wallet.address)}</WalletTitle>
-            <WalletDesc>{wallet.unlocked ? "Extended 계정이 연결되어 주문할 수 있어요" : wallet.account ? "서명으로 잠금을 풀면 주문할 수 있어요" : "Extended 계정을 연결하면 주문할 수 있어요"}</WalletDesc>
+            <WalletDesc>{wallet.unlocked ? "이 지갑으로 주문할 수 있어요" : wallet.setup.status === "running" ? "지갑에서 서명을 확인하면 주문할 수 있어요" : "지갑 서명을 확인하면 주문할 수 있어요"}</WalletDesc>
             <WalletButton type="button" onClick={() => wallet.openPanel()}>
-              {wallet.unlocked ? "지갑 관리" : wallet.account ? "잠금 해제하기" : "Extended 계정 연결하기"}
+              {wallet.unlocked ? "지갑 관리" : "지갑 확인"}
             </WalletButton>
           </>
         ) : (
