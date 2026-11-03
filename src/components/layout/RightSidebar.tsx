@@ -11,6 +11,7 @@ import { useWatchlist } from "@/components/providers/WatchlistProvider";
 import TokenIcon from "@/components/common/TokenIcon";
 import ChangeText from "@/components/common/ChangeText";
 import type { CryptoNews } from "@/lib/news";
+import { shortAddress, useWallet } from "@/components/wallet/context";
 import SidebarFeed from "./SidebarFeed";
 
 const tabs = [
@@ -32,6 +33,7 @@ export default function RightSidebar({ news }: { news: CryptoNews[] }) {
   const { watchlist } = useWatchlist();
   const recent = useRecentViewed();
   const { tokens, findToken } = useMarket();
+  const wallet = useWallet();
 
   const list: Token[] =
     tab === "watch"
@@ -70,9 +72,23 @@ export default function RightSidebar({ news }: { news: CryptoNews[] }) {
       )}
 
       <WalletCard>
-        <WalletTitle>지갑을 연결하고</WalletTitle>
-        <WalletDesc>내 자산과 거래 내역을 한눈에 확인하세요</WalletDesc>
-        <WalletButton>지갑 연결하기</WalletButton>
+        {wallet.address ? (
+          <>
+            <WalletTitle>{shortAddress(wallet.address)}</WalletTitle>
+            <WalletDesc>{wallet.unlocked ? "Extended 계정이 연결되어 주문할 수 있어요" : wallet.account ? "서명으로 잠금을 풀면 주문할 수 있어요" : "Extended 계정을 연결하면 주문할 수 있어요"}</WalletDesc>
+            <WalletButton type="button" onClick={() => wallet.openPanel()}>
+              {wallet.unlocked ? "지갑 관리" : wallet.account ? "잠금 해제하기" : "Extended 계정 연결하기"}
+            </WalletButton>
+          </>
+        ) : (
+          <>
+            <WalletTitle>지갑을 연결하고</WalletTitle>
+            <WalletDesc>내 자산과 거래 내역을 한눈에 확인하세요</WalletDesc>
+            <WalletButton type="button" onClick={() => wallet.openPanel()}>
+              지갑 연결하기
+            </WalletButton>
+          </>
+        )}
       </WalletCard>
 
       <SidebarFeed initialNews={news} />

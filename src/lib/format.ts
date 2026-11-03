@@ -17,19 +17,17 @@ export function formatPercent(value: number) {
   return `${sign}${value.toFixed(2)}%`;
 }
 
-const kstFormatter = new Intl.DateTimeFormat("ko-KR", {
-  timeZone: "Asia/Seoul",
-  month: "2-digit",
-  day: "2-digit",
-  hour: "2-digit",
-  minute: "2-digit",
-  hour12: false,
-});
+/** 서버(Node)와 브라우저의 Intl 시(24시/00시) 차이가 하이드레이션을 깨지 않도록 직접 맞춘다. */
+function formatKst(time: number) {
+  const shifted = new Date(time + 9 * 3_600_000);
+  const pad = (value: number) => String(value).padStart(2, "0");
+  return `${pad(shifted.getUTCMonth() + 1)}. ${pad(shifted.getUTCDate())}. ${pad(shifted.getUTCHours())}:${pad(shifted.getUTCMinutes())}`;
+}
 
 /** now가 0이면(서버 렌더링 중) 한국 시간 기준 절대 시각을 반환한다. */
 export function formatRelativeTime(iso: string, now: number) {
   const time = new Date(iso).getTime();
-  if (!now) return kstFormatter.format(time);
+  if (!now) return formatKst(time);
 
   const minutes = Math.floor((now - time) / 60_000);
   if (minutes < 1) return "방금 전";

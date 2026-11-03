@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { useState } from "react";
 import styled from "styled-components";
 import { chains } from "@/data/tokens";
+import { shortAddress, useWallet } from "@/components/wallet/context";
 import HeaderSearch from "./HeaderSearch";
 
 const navItems = [
@@ -21,6 +22,7 @@ export default function Header({ fluid = false }: { fluid?: boolean }) {
   const [chain, setChain] = useState(chains[0]);
   const [chainOpen, setChainOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
+  const wallet = useWallet();
 
   return (
     <Wrapper>
@@ -82,7 +84,16 @@ export default function Header({ fluid = false }: { fluid?: boolean }) {
               </ChainMenu>
             )}
           </ChainSelector>
-          <ConnectButton>지갑 연결</ConnectButton>
+          <ConnectButton type="button" $connected={Boolean(wallet.address)} aria-label={wallet.address ? `지갑 ${wallet.address}` : "지갑 연결"} onClick={() => wallet.openPanel()}>
+            {wallet.address ? (
+              <>
+                <StatusDot $on={wallet.unlocked} aria-hidden />
+                {shortAddress(wallet.address)}
+              </>
+            ) : (
+              "지갑 연결"
+            )}
+          </ConnectButton>
         </Right>
       </Inner>
 
@@ -381,23 +392,33 @@ const ChainOption = styled.button<{ $active: boolean }>`
   }
 `;
 
-const ConnectButton = styled.button`
+const ConnectButton = styled.button<{ $connected: boolean }>`
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   height: 36px;
   padding: 0 16px;
   border-radius: ${({ theme }) => theme.radius.sm};
-  background: ${({ theme }) => theme.colors.primary};
-  color: #fff;
+  background: ${({ theme, $connected }) => ($connected ? theme.colors.surface : theme.colors.primary)};
+  color: ${({ theme, $connected }) => ($connected ? theme.colors.text : "#fff")};
   font-size: 14px;
   font-weight: 600;
   white-space: nowrap;
   transition: background 0.15s;
 
   &:hover {
-    background: ${({ theme }) => theme.colors.primaryHover};
+    background: ${({ theme, $connected }) => ($connected ? theme.colors.surfaceHover : theme.colors.primaryHover)};
   }
 
   @media ${SMALL} {
     padding: 0 12px;
     font-size: 13px;
   }
+`;
+
+const StatusDot = styled.span<{ $on: boolean }>`
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: ${({ theme, $on }) => ($on ? "#00c896" : theme.colors.textDisabled)};
 `;
