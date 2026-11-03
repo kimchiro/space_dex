@@ -105,6 +105,12 @@ export const getMarket = async (market: string) => {
   return found;
 };
 
+export type Orderbook = { market: string; bid: { qty: string; price: string }[]; ask: { qty: string; price: string }[] };
+export type PublicTrade = { i: string | number; S: "BUY" | "SELL"; T: number; p: string; q: string };
+
+export const getOrderbook = (market: string) => extendedRequest<Orderbook>(`/api/v1/info/markets/${market}/orderbook`);
+export const getMarketTrades = (market: string) => extendedRequest<PublicTrade[]>(`/api/v1/info/markets/${market}/trades`);
+
 export const getFees = (auth: { apiKey: string }, market: string, builderId?: string) =>
   extendedRequest<FeeRow[]>("/api/v1/user/fees", { ...auth, query: { market, builderId } });
 
@@ -128,5 +134,8 @@ export const getOrdersByExternalId = (auth: { apiKey: string }, externalId: stri
 
 export const placeOrder = (auth: { apiKey: string }, endpoint: string, body: unknown) =>
   extendedRequest<{ id: string | number; externalId: string }>(endpoint, { ...auth, method: "POST", body });
+
+/** 테스트넷 전용. 지갑당 하루 1,000 USD까지 테스트 담보를 받는다. 입금이 없는 계정은 주문이 UNKNOWN_ACCOUNT로 거부된다. */
+export const claimTestFunds = (auth: { apiKey: string }) => extendedRequest<{ id: string | number }>("/api/v1/user/claim", { ...auth, method: "POST", body: {} });
 
 export const cancelOrder = (auth: { apiKey: string }, id: string) => extendedRequest<unknown>(`/api/v1/user/order/${id}`, { ...auth, method: "DELETE" });

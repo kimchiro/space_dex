@@ -7,7 +7,7 @@ const KLINES_PAGE = 1000;
 export type DepthLevel = { price: number; amount: number };
 
 export type Trade = {
-  id: number;
+  id: number | string;
   price: number;
   amount: number;
   time: number;

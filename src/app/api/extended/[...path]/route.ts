@@ -1,5 +1,6 @@
 import type { NextRequest } from "next/server";
-import { NETWORK } from "@/lib/extended/config";
+import { NETWORK, NETWORKS } from "@/lib/extended/config";
+import { FORWARDED_HEADERS, USER_AGENT } from "@/lib/extended/headers";
 
 /**
  * Extended REST 중계. Extended는 User-Agent를 요구하고 브라우저 CORS를 보장하지 않아서 서버를 거친다.
@@ -9,6 +10,7 @@ const ROUTES: Record<string, RegExp[]> = {
   GET: [
     /^\/api\/v1\/info\/starknet$/,
     /^\/api\/v1\/info\/markets$/,
+    /^\/api\/v1\/info\/markets\/[A-Z0-9]+-[A-Z]+\/(orderbook|trades)$/,
     /^\/api\/v1\/user\/fees$/,
     /^\/api\/v1\/user\/account\/info$/,
     /^\/api\/v1\/user\/accounts$/,
@@ -17,19 +19,15 @@ const ROUTES: Record<string, RegExp[]> = {
     /^\/api\/v1\/user\/orders\/\d+$/,
     /^\/api\/v1\/user\/orders\/external\/\d+$/,
   ],
-  POST: [/^\/auth\/onboard$/, /^\/api\/v1\/user\/account\/api-key$/, /^\/api\/v1\/user\/order$/, /^\/api\/v1\/user\/order\/rfq$/],
+  POST: [
+    /^\/auth\/onboard$/,
+    /^\/api\/v1\/user\/account\/api-key$/,
+    /^\/api\/v1\/user\/order$/,
+    /^\/api\/v1\/user\/order\/rfq$/,
+    ...(NETWORK === NETWORKS.testnet ? [/^\/api\/v1\/user\/claim$/] : []),
+  ],
   DELETE: [/^\/api\/v1\/user\/order\/\d+$/],
 };
-
-// 언더스코어 헤더는 중간 프록시에서 버려질 수 있어 브라우저→중계 구간은 하이픈 이름을 쓴다.
-const FORWARDED_HEADERS: [from: string, to: string][] = [
-  ["x-api-key", "X-Api-Key"],
-  ["x-l1-signature", "L1_SIGNATURE"],
-  ["x-l1-message-time", "L1_MESSAGE_TIME"],
-  ["x-x10-active-account", "X-X10-ACTIVE-ACCOUNT"],
-];
-
-const USER_AGENT = "SPACEDEX/0.1";
 
 async function relay(request: NextRequest, segments: string[]) {
   const path = `/${segments.join("/")}`;

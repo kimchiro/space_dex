@@ -116,7 +116,6 @@ export async function createSignedOrder(input: OrderInput, fee: Extract<FeeCheck
     reduceOnly: input.reduceOnly ?? false,
     postOnly: market.isRfq ? false : (input.postOnly ?? false),
     selfTradeProtectionLevel: "ACCOUNT",
-    // Extended 주문 API는 builderId를 숫자로만 받는다. 문자열이면 "Builder ID is not valid"가 반환된다.
     builderId: fee.builderId,
     builderFee: fee.builderFee.toString(10),
     debuggingAmounts: { collateralAmount: collateralStark.toString(10), feeAmount: feeStark.toString(10), syntheticAmount: syntheticStark.toString(10) },

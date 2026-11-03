@@ -32,3 +32,6 @@ export const forgetAccount = (address: string) =>
   });
 
 export const selectedAddressStore = createLocalStore<string | null>("spacedex:wallet-address", null);
+
+/** MetaMask처럼 사이트 연결을 코드로 끊을 수 없는 지갑이 있어, 연결 해제 여부는 앱이 따로 기억한다. */
+export const disconnectedStore = createLocalStore<boolean>("spacedex:wallet-disconnected", false);

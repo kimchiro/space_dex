@@ -1,10 +1,13 @@
 import initWasm, { generate_private_key_from_eth_signature, get_order_msg, sign_message } from "@x10xchange/stark-crypto-wrapper-wasm";
 import { ec } from "starknet";
 
-/** Extended 공식 WASM 서명 모듈. 로드에 실패하면 서명 단계에서 막는다(대체 구현으로 서명하지 않는다). */
+/**
+ * Extended 공식 WASM 서명 모듈. 로드에 실패하면 서명 단계에서 막는다(대체 구현으로 서명하지 않는다).
+ * Node에는 URL로 .wasm을 불러올 fetch가 없어서, 서버 스크립트는 파일 내용을 처음 한 번 넘긴다.
+ */
 let ready: Promise<unknown> | null = null;
-export const loadStarkCrypto = () => {
-  ready ??= initWasm().catch((e) => {
+export const loadStarkCrypto = (wasm?: BufferSource) => {
+  ready ??= initWasm(wasm && { module_or_path: wasm }).catch((e) => {
     ready = null;
     throw e;
   });

@@ -26,7 +26,7 @@ export const NETWORK = NETWORKS[EXTENDED_NETWORK];
 
 /**
  * SPACEDEX Extended 계정의 clientId. 고객 accountId·vault·지갑 주소·추천 코드가 아니다.
- * 수수료 조회 쿼리는 문자열이고, 주문 본문의 builderId는 숫자다.
+ * 빌더 계정과 같은 지갑으로 주문하면 Extended가 1150으로 거절하므로, 빌더 계정은 거래용 지갑과 따로 둔다.
  */
 export function parseBuilderId(value: string | null | undefined): number | null {
   const id = value?.trim() ?? "";

@@ -6,6 +6,8 @@ import { generateOrderBook, type Token } from "@/data/tokens";
 import type { DepthLevel, MarketDepth as MarketDepthData, MarketDepthResult } from "@/lib/binance";
 import { formatAmount, formatPrice } from "@/lib/format";
 import ChangeText from "@/components/common/ChangeText";
+import { ExtendedError, getMarketTrades, getOrderbook } from "@/lib/extended/api";
+import { EXTENDED_NETWORK } from "@/lib/extended/config";
 
 const LIVE_POLL_MS = 3_000;
 const RETRY_POLL_MS = 15_000;
@@ -22,10 +24,11 @@ const timeFormat = new Intl.DateTimeFormat("ko-KR", {
   hour12: false,
 });
 
-function useMarketDepth(symbol: string) {
+function useMarketDepth(symbol: string, enabled: boolean) {
   const [state, setState] = useState<DepthState | null>(null);
 
   useEffect(() => {
+    if (!enabled) return;
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
 
@@ -60,9 +63,59 @@ function useMarketDepth(symbol: string) {
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [symbol]);
+  }, [symbol, enabled]);
 
-  return state?.symbol === symbol ? state : null;
+  return enabled && state?.symbol === symbol ? state : null;
+}
+
+const EXTENDED_LEVELS = 5;
+
+/** 실제 주문이 들어가는 Extended 호가. 비어 있으면 빈 목록 그대로 보여 주고 예시 데이터로 채우지 않는다. */
+function useExtendedDepth(symbol: string, enabled: boolean) {
+  const [state, setState] = useState<DepthState | null>(null);
+
+  useEffect(() => {
+    if (!enabled) return;
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const market = `${symbol}-USD`;
+
+    const load = async () => {
+      let next = LIVE_POLL_MS;
+      try {
+        const [book, trades] = await Promise.all([getOrderbook(market), getMarketTrades(market)]);
+        if (cancelled) return;
+        const level = (l: { qty: string; price: string }) => ({ price: Number(l.price), amount: Number(l.qty) });
+        setState({
+          symbol,
+          status: "live",
+          data: {
+            pair: market,
+            asks: book.ask.slice(0, EXTENDED_LEVELS).map(level),
+            bids: book.bid.slice(0, EXTENDED_LEVELS).map(level),
+            trades: [...trades]
+              .sort((a, b) => b.T - a.T)
+              .slice(0, 30)
+              .map((t) => ({ id: String(t.i), price: Number(t.p), amount: Number(t.q), time: t.T, side: t.S === "BUY" ? "buy" : "sell" })),
+          },
+        });
+      } catch (e) {
+        if (cancelled) return;
+        if (e instanceof ExtendedError && e.status === 404) return setState({ symbol, status: "unavailable" });
+        next = RETRY_POLL_MS;
+        setState((prev) => (prev?.symbol === symbol && prev.status === "live" ? prev : { symbol, status: "unavailable" }));
+      }
+      if (!cancelled) timer = setTimeout(load, next);
+    };
+
+    load();
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [symbol, enabled]);
+
+  return enabled && state?.symbol === symbol ? state : null;
 }
 
 function withCumulative(levels: DepthLevel[]) {
@@ -73,15 +126,20 @@ function withCumulative(levels: DepthLevel[]) {
   });
 }
 
-export default function MarketDepth({ token, plain = false }: { token: Token; plain?: boolean }) {
-  const state = useMarketDepth(token.symbol);
+type Source = "binance" | "extended";
+
+export default function MarketDepth({ token, plain = false, source = "binance" }: { token: Token; plain?: boolean; source?: Source }) {
+  const extended = source === "extended";
+  const binanceState = useMarketDepth(token.symbol, !extended);
+  const extendedState = useExtendedDepth(token.symbol, extended);
+  const state = extended ? extendedState : binanceState;
   const live = state?.status === "live" ? state.data : null;
 
   const { asks, bids, maxTotal } = useMemo(() => {
-    const source = live ?? (() => {
+    const source = live ?? (extended ? { asks: [], bids: [] } : (() => {
       const mock = generateOrderBook(token, 5);
       return { asks: [...mock.asks].reverse(), bids: mock.bids };
-    })();
+    })());
     const a = withCumulative(source.asks);
     const b = withCumulative(source.bids);
     return {
@@ -89,7 +147,7 @@ export default function MarketDepth({ token, plain = false }: { token: Token; pl
       bids: b,
       maxTotal: Math.max(a.at(-1)?.total ?? 0, b.at(-1)?.total ?? 0) || 1,
     };
-  }, [live, token]);
+  }, [live, token, extended]);
 
   const trades = useMemo(() => {
     if (!live) return [];
@@ -102,19 +160,30 @@ export default function MarketDepth({ token, plain = false }: { token: Token; pl
 
   const lastPrice = live?.trades[0]?.price ?? token.price;
   const unit = token.symbol;
+  const sourceLabel = extended
+    ? live
+      ? `실시간 · Extended ${live.pair}${EXTENDED_NETWORK === "testnet" ? " 테스트넷" : ""} 주문 호가`
+      : state
+        ? `Extended에 ${token.symbol}-USD 마켓이 없어요`
+        : "불러오는 중…"
+    : live
+      ? `실시간 · Binance ${live.pair} 기준`
+      : state
+        ? "예시 데이터"
+        : "불러오는 중…";
+  const emptyBook = extended && live && asks.length === 0 && bids.length === 0;
 
   return (
     <Card $plain={plain}>
       <Head>
         <Title>호가 · 체결</Title>
-        <Source $live={Boolean(live)}>
-          {live ? `실시간 · Binance ${live.pair} 기준` : state ? "예시 데이터" : "불러오는 중…"}
-        </Source>
+        <Source $live={Boolean(live)}>{sourceLabel}</Source>
       </Head>
 
       <Panels>
         <Panel>
           <PanelTitle>호가</PanelTitle>
+          {emptyBook && <Empty>지금 걸린 주문이 없어요. 시장가 주문은 체결되지 않고 취소돼요.</Empty>}
           <Columns $cols={3}>
             <span>가격(USD)</span>
             <span>수량({unit})</span>
@@ -166,7 +235,7 @@ export default function MarketDepth({ token, plain = false }: { token: Token; pl
               ))}
             </TradeList>
           ) : (
-            <Empty>{state ? "체결 데이터를 제공하지 않는 코인이에요." : "체결 내역을 불러오는 중…"}</Empty>
+            <Empty>{!state ? "체결 내역을 불러오는 중…" : extended && live ? "아직 체결된 거래가 없어요." : "체결 데이터를 제공하지 않는 코인이에요."}</Empty>
           )}
         </Panel>
       </Panels>

@@ -4,7 +4,7 @@ import BigNumber from "bignumber.js";
 import { useEffect, useState } from "react";
 import styled from "styled-components";
 import type { Token } from "@/data/tokens";
-import { cancelOrder, ExtendedError, getBalance, getMarket, getOrder, getOrdersByExternalId, getStarknetDomain, placeOrder, type Balance, type Market, type StarknetDomain, type UserOrder } from "@/lib/extended/api";
+import { cancelOrder, claimTestFunds, ExtendedError, getBalance, getMarket, getOrder, getOrdersByExternalId, getStarknetDomain, placeOrder, type Balance, type Market, type StarknetDomain, type UserOrder } from "@/lib/extended/api";
 import { EXTENDED_NETWORK } from "@/lib/extended/config";
 import { checkBuilderFee, type FeeCheck } from "@/lib/extended/fees";
 import { createSignedOrder, validateOrder, worstPrice, type OrderKind, type OrderSide } from "@/lib/extended/order";
@@ -22,6 +22,14 @@ const STATUS_LABEL: Record<string, string> = {
   TRIGGERED: "조건 충족",
 };
 
+const REASON_LABEL: Record<string, string> = {
+  UNKNOWN_ACCOUNT: "입금 기록이 없는 계정이에요. 잔액을 채운 뒤 다시 주문해 주세요.",
+  NOT_ENOUGH_FUNDS: "잔액이 부족해요.",
+  NO_LIQUIDITY: "허용 가격 안에 체결할 상대 호가가 없어요.",
+  POST_ONLY_FAILED: "바로 체결되는 가격이라 Post-only로 걸 수 없어요.",
+  INVALID_PRICE: "주문 가격이 허용 범위를 벗어났어요.",
+};
+
 type Submitted = { body: unknown; endpoint: string; externalId: string; id?: string; order?: UserOrder; phase: "sending" | "unknown" | "accepted" };
 
 const pct = (n: BigNumber) => `${n.times(100).toFormat()}%`;
@@ -36,7 +44,8 @@ const stepPrice = (market: Market) => {
 export default function TradeOrder({ token }: { token: Token }) {
   const wallet = useWallet();
   const marketName = `${token.symbol}-USD`;
-  const apiKey = wallet.account?.apiKey;
+  // 헤더·지갑 창과 같은 잠금 상태를 따른다. 잠겨 있으면 저장된 키가 있어도 잔액·수수료를 보여 주지 않는다.
+  const apiKey = wallet.unlocked ? wallet.account?.apiKey : undefined;
 
   const [market, setMarket] = useState<Market | null>(null);
   const [marketState, setMarketState] = useState<"loading" | "ready" | "missing">("loading");
@@ -53,6 +62,21 @@ export default function TradeOrder({ token }: { token: Token }) {
   const [submitted, setSubmitted] = useState<Submitted | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+
+  // 주소가 바뀌면 이전 지갑의 주문·잔액·에러를 버리고, 잠금 상태가 바뀌면 지난 에러를 지운다.
+  const [trackedAddress, setTrackedAddress] = useState(wallet.address);
+  const [trackedUnlocked, setTrackedUnlocked] = useState(wallet.unlocked);
+  if (trackedAddress !== wallet.address) {
+    setTrackedAddress(wallet.address);
+    setSubmitted(null);
+    setBalance(undefined);
+    setFee(null);
+    setError(null);
+  }
+  if (trackedUnlocked !== wallet.unlocked) {
+    setTrackedUnlocked(wallet.unlocked);
+    setError(null);
+  }
 
   useEffect(() => {
     let alive = true;
@@ -74,6 +98,7 @@ export default function TradeOrder({ token }: { token: Token }) {
     };
   }, [marketName]);
 
+  const [balanceRound, setBalanceRound] = useState(0);
   useEffect(() => {
     if (!apiKey) return;
     let alive = true;
@@ -83,7 +108,31 @@ export default function TradeOrder({ token }: { token: Token }) {
     return () => {
       alive = false;
     };
-  }, [apiKey]);
+  }, [apiKey, balanceRound]);
+
+  const [claiming, setClaiming] = useState(false);
+  const claim = async () => {
+    if (!apiKey || claiming) return;
+    setClaiming(true);
+    setError(null);
+    try {
+      await claimTestFunds({ apiKey });
+      // 입금 반영까지 몇 초 걸린다.
+      for (let i = 0; i < 10; i++) {
+        await new Promise((r) => setTimeout(r, 1500));
+        const next = await getBalance({ apiKey }).catch(() => null);
+        if (next && new BigNumber(next.availableForTrade).gt(0)) {
+          setBalance(next);
+          break;
+        }
+      }
+      setBalanceRound((n) => n + 1);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "테스트 자금을 받지 못했어요.");
+    } finally {
+      setClaiming(false);
+    }
+  };
 
   useEffect(() => {
     if (!apiKey || !market) return;
@@ -102,6 +151,7 @@ export default function TradeOrder({ token }: { token: Token }) {
   const invalid = !market ? (marketState === "loading" ? "마켓 정보를 불러오는 중이에요." : "Extended에 이 코인의 USD 마켓이 없어요.") : validateOrder(input!);
   const notional = new BigNumber(qty || 0).times(effectivePrice || 0);
   const pending = submitted && submitted.phase !== "accepted";
+  const unfunded = Boolean(apiKey) && (balance === null || (balance !== undefined && new BigNumber(balance.availableForTrade).lte(0)));
   const needsAccount = !wallet.address || !wallet.unlocked;
   const auth = apiKey ? { apiKey } : null;
 
@@ -120,16 +170,19 @@ export default function TradeOrder({ token }: { token: Token }) {
       } else {
         setSubmitted(null);
       }
+      // 1150은 빌더 ID가 없는 계정이거나 주문하는 계정 자신일 때 온다.
+      if (e instanceof ExtendedError && Number(e.code) === 1150) return setError("이 지갑은 SPACEDEX 빌더 계정과 같아서 빌더 수수료를 붙일 수 없어요. 다른 지갑으로 주문해 주세요.");
       setError(e instanceof Error ? e.message : "주문을 보내지 못했어요.");
     }
   };
 
   const submit = async () => {
-    if (needsAccount) {
-      wallet.openPanel();
+    if (!wallet.address) return wallet.openPanel();
+    if (!wallet.unlocked) {
+      if (wallet.setup.status !== "running") void wallet.connectAccount();
       return;
     }
-    if (!input || invalid || !feeForMarket?.ok || !domain || !wallet.account || pending) return;
+    if (!input || invalid || unfunded || !feeForMarket?.ok || !domain || !wallet.account || pending) return;
     const privateKey = wallet.signingKey();
     if (!privateKey) return setError("서명 키가 잠겨 있어요. 지갑 창에서 다시 잠금 해제해 주세요.");
     setError(null);
@@ -197,7 +250,7 @@ export default function TradeOrder({ token }: { token: Token }) {
       <Field>
         <FieldLabel>
           <span>수량{market ? ` · ${market.assetName}` : ""}</span>
-          <span>{balance ? `거래 가능 ${new BigNumber(balance.availableForTrade).toFormat(2)} ${balance.collateralName}` : apiKey ? "잔액 0 · 입금이 필요해요" : "잔액은 계정 연결 후 보여요"}</span>
+          <span>{!apiKey ? "잔액은 지갑 서명 후 보여요" : balance ? `거래 가능 ${new BigNumber(balance.availableForTrade).toFormat(2)} ${balance.collateralName}` : balance === null ? "잔액 0 · 입금이 필요해요" : "잔액 확인 중"}</span>
         </FieldLabel>
         <InputRow>
           <input inputMode="decimal" placeholder={market?.tradingConfig.minOrderSize ?? "0"} value={qty} onChange={(e) => setQty(e.target.value.replace(/[^0-9.]/g, ""))} />
@@ -240,7 +293,7 @@ export default function TradeOrder({ token }: { token: Token }) {
           <span>주문 금액</span>
           <span>{notional.isFinite() && notional.gt(0) ? notional.toFormat(2) : "—"}</span>
         </SummaryRow>
-        {feeForMarket?.ok ? (
+        {apiKey && feeForMarket?.ok ? (
           <>
             <SummaryRow>
               <span>기본 수수료</span>
@@ -260,13 +313,24 @@ export default function TradeOrder({ token }: { token: Token }) {
         ) : (
           <SummaryRow>
             <span>수수료</span>
-            <span>{!wallet.unlocked ? "계정 연결 후 확인" : feeForMarket ? feeForMarket.reason : "상한 확인 중"}</span>
+            <span>{!apiKey ? "지갑 서명 후 확인" : feeForMarket && !feeForMarket.ok ? feeForMarket.reason : "상한 확인 중"}</span>
           </SummaryRow>
         )}
       </Summary>
 
       {marketState === "missing" && <ErrorText role="alert">Extended에 {marketName} 마켓이 없어 이 화면에서는 주문할 수 없어요.</ErrorText>}
-      {feeForMarket && !feeForMarket.ok && <ErrorText role="alert">주문할 수 없어요: {feeForMarket.reason}</ErrorText>}
+      {apiKey && feeForMarket && !feeForMarket.ok && <ErrorText role="alert">주문할 수 없어요: {feeForMarket.reason}</ErrorText>}
+      {wallet.address && wallet.setup.status === "error" && <ErrorText role="alert">{wallet.setup.message}</ErrorText>}
+      {unfunded && (
+        <Funding>
+          <span>잔액이 없어 주문할 수 없어요. 입금이 없는 계정의 주문은 Extended가 거부해요.</span>
+          {EXTENDED_NETWORK === "testnet" && (
+            <ClaimButton type="button" disabled={claiming} onClick={claim}>
+              {claiming ? "받는 중…" : "테스트 USDC 받기"}
+            </ClaimButton>
+          )}
+        </Funding>
+      )}
       {error && <ErrorText role="alert">{error}</ErrorText>}
       {wallet.unlocked && invalid && qty && <ErrorText role="alert">{invalid}</ErrorText>}
 
@@ -275,7 +339,7 @@ export default function TradeOrder({ token }: { token: Token }) {
           같은 주문 다시 보내기
         </SubmitButton>
       ) : (
-        <SubmitButton type="button" $side={side === "BUY" ? "buy" : "sell"} disabled={!needsAccount && (Boolean(invalid) || !feeForMarket?.ok || !domain || busy || Boolean(pending))} onClick={submit}>
+        <SubmitButton type="button" $side={side === "BUY" ? "buy" : "sell"} disabled={wallet.setup.status === "running" || (!needsAccount && (Boolean(invalid) || unfunded || !feeForMarket?.ok || !domain || busy || Boolean(pending)))} onClick={submit}>
           {buttonLabel}
         </SubmitButton>
       )}
@@ -293,7 +357,7 @@ export default function TradeOrder({ token }: { token: Token }) {
               </CancelButton>
             )}
           </ResultRow>
-          {submitted.order?.statusReason && <Hint>사유: {submitted.order.statusReason}</Hint>}
+          {submitted.order?.statusReason && <Hint>사유: {REASON_LABEL[submitted.order.statusReason] ?? submitted.order.statusReason}</Hint>}
           <Hint>주문 ID를 받았다고 체결된 것은 아니에요. 위 상태가 체결 완료가 될 때까지 확인해요.</Hint>
         </Result>
       )}
@@ -437,6 +501,34 @@ const ErrorText = styled.p`
   line-height: 1.5;
   color: ${({ theme }) => theme.colors.rise};
   word-break: keep-all;
+`;
+
+const Funding = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 12px;
+  border-radius: ${({ theme }) => theme.radius.md};
+  background: ${({ theme }) => theme.colors.primaryWeak};
+  font-size: 13px;
+  line-height: 1.5;
+  word-break: keep-all;
+`;
+
+const ClaimButton = styled.button`
+  flex-shrink: 0;
+  height: 36px;
+  padding: 0 14px;
+  border-radius: ${({ theme }) => theme.radius.sm};
+  background: ${({ theme }) => theme.colors.primary};
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+
+  &:disabled {
+    opacity: 0.6;
+  }
 `;
 
 const SubmitButton = styled.button<{ $side: "buy" | "sell" }>`

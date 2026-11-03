@@ -6,7 +6,7 @@ import { getAddress, isAddressEqual, recoverMessageAddress, recoverTypedDataAddr
 import { theme } from "@/styles/theme";
 import { ExtendedError, getAccountInfo } from "@/lib/extended/api";
 import type { EvmSigner } from "@/lib/extended/onboarding";
-import { accountKey, forgetAccount, saveAccount, selectedAddressStore, useStoredAccounts, type StoredAccount } from "@/lib/extended/session";
+import { accountKey, disconnectedStore, forgetAccount, saveAccount, selectedAddressStore, useStoredAccounts, type StoredAccount } from "@/lib/extended/session";
 import type { Hex } from "@/lib/extended/stark";
 import { WalletContext, type SetupState, type WalletContextValue } from "@/components/wallet/context";
 import WalletModal from "@/components/wallet/WalletModal";
@@ -102,6 +102,8 @@ async function createSigner(wallet: ConnectedWallet): Promise<EvmSigner> {
   };
 }
 
+class StaleAccount extends Error {}
+
 /** 사용자 메시지만 남긴다. 서명·키가 섞일 수 있는 원본 오류 객체는 로그나 외부로 보내지 않는다. */
 function describeError(error: unknown) {
   const e = error as { code?: number; message?: string } | null;
@@ -113,7 +115,8 @@ function describeError(error: unknown) {
 function PrivyBridge({ children, ...panel }: PanelProps) {
   const { ready, authenticated, login, connectWallet, logout } = usePrivy();
   const { wallets: allWallets, ready: walletsReady } = useWallets();
-  const wallets = useMemo(() => allWallets.filter((w) => w.type === "ethereum"), [allWallets]);
+  const disconnected = disconnectedStore.useValue();
+  const wallets = useMemo(() => (disconnected ? [] : allWallets.filter((w) => w.type === "ethereum")), [allWallets, disconnected]);
 
   const selected = selectedAddressStore.useValue();
   const wallet = wallets.find((w) => selected && w.address.toLowerCase() === selected.toLowerCase()) ?? null;
@@ -157,9 +160,26 @@ function PrivyBridge({ children, ...panel }: PanelProps) {
   const handleLogout = useCallback(async () => {
     lock();
     setPrevious(null);
+    disconnectedStore.write(true);
     selectedAddressStore.write(null);
-    await logout();
-  }, [lock, logout]);
+    autoStarted.current = null;
+    for (const item of allWallets) {
+      if (item.walletClientType === "privy") continue;
+      item.disconnect();
+      // MetaMask는 disconnect()가 동작하지 않아 사이트 권한을 직접 회수한다. 지원하지 않는 지갑은 무시한다.
+      item
+        .getEthereumProvider()
+        .then((provider) => provider.request({ method: "wallet_revokePermissions", params: [{ eth_accounts: {} }] }))
+        .catch(() => {});
+    }
+    await logout().catch(() => {});
+    panel.closePanel();
+  }, [lock, logout, allWallets, panel]);
+
+  const reconnect = useCallback((open: () => void) => {
+    disconnectedStore.write(false);
+    open();
+  }, []);
 
   const connectAccount = useCallback(async () => {
     if (!wallet || !address || setup.status === "running") return;
@@ -176,13 +196,15 @@ function PrivyBridge({ children, ...panel }: PanelProps) {
         try {
           const info = await getAccountInfo({ apiKey: account.apiKey });
           if (!sameKey(info.l2Key, keys.publicKey)) throw new Error("Extended 계정의 공개키가 이 지갑에서 만든 키와 달라요.");
+          // 저장된 vault가 실제 계정과 다르면 주문이 UNKNOWN_ACCOUNT로 거부되므로, 다시 등록해 vault를 새로 받는다.
+          if (String(info.l2Vault) !== account.vault) throw new StaleAccount();
           keyRef.current = { address, privateKey: keys.privateKey };
           setUnlockedFor(address);
           setSetup({ status: "idle" });
           return;
         } catch (e) {
           // API 키가 폐기됐으면 같은 키로 다시 등록하고 새 키를 받는다.
-          if (!(e instanceof ExtendedError && e.status === 401)) throw e;
+          if (!(e instanceof StaleAccount) && !(e instanceof ExtendedError && e.status === 401)) throw e;
           forgetAccount(address);
         }
       } else if (account) {
@@ -221,12 +243,12 @@ function PrivyBridge({ children, ...panel }: PanelProps) {
   const value: WalletContextValue = {
     configured: true,
     ready: ready && walletsReady,
-    authenticated,
+    authenticated: authenticated && !disconnected,
     wallets,
     address,
     selectAddress,
-    login: () => login(),
-    connectAnother: () => connectWallet(),
+    login: () => reconnect(() => login()),
+    connectAnother: () => reconnect(() => connectWallet()),
     logout: handleLogout,
     account,
     unlocked,

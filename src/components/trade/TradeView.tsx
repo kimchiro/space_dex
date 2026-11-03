@@ -72,7 +72,7 @@ export default function TradeView({ token: initialToken }: { token: Token }) {
                 </Stat>
               </Stats>
               <TradingViewChart token={token} />
-              <MarketDepth token={token} />
+              <MarketDepth token={token} source="extended" />
             </ChartTab>
           )}
           {tab === "info" && <CoinInfo token={token} />}
