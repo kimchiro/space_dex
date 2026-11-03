@@ -24,8 +24,18 @@ export const NETWORKS: Record<ExtendedNetwork, NetworkConfig> = {
 export const EXTENDED_NETWORK: ExtendedNetwork = process.env.NEXT_PUBLIC_EXTENDED_NETWORK === "mainnet" ? "mainnet" : "testnet";
 export const NETWORK = NETWORKS[EXTENDED_NETWORK];
 
-/** SPACEDEX Extended 계정의 clientId. 고객 accountId·vault·지갑 주소·추천 코드가 아니다. */
-export const BUILDER_ID = process.env.NEXT_PUBLIC_EXTENDED_BUILDER_ID?.trim() || null;
+/**
+ * SPACEDEX Extended 계정의 clientId. 고객 accountId·vault·지갑 주소·추천 코드가 아니다.
+ * 수수료 조회 쿼리는 문자열이고, 주문 본문의 builderId는 숫자다.
+ */
+export function parseBuilderId(value: string | null | undefined): number | null {
+  const id = value?.trim() ?? "";
+  if (!/^[1-9]\d*$/.test(id)) return null;
+  const parsed = Number(id);
+  return Number.isSafeInteger(parsed) ? parsed : null;
+}
+
+export const BUILDER_ID = parseBuilderId(process.env.NEXT_PUBLIC_EXTENDED_BUILDER_ID);
 
 /** 0.12%. 소수 비율이므로 0.12로 쓰면 12%가 된다. 테스트넷 빌더 상한과 같다. */
 export const BUILDER_FEE = "0.0012";

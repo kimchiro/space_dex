@@ -3,7 +3,7 @@ import { BUILDER_FEE, BUILDER_ID } from "./config";
 import { getFees } from "./api";
 
 export type FeeCheck =
-  | { ok: true; market: string; baseFeeRate: BigNumber; builderFee: BigNumber; cap: BigNumber; builderId: string }
+  | { ok: true; market: string; baseFeeRate: BigNumber; builderFee: BigNumber; cap: BigNumber; builderId: number }
   | { ok: false; market: string; reason: string };
 
 // Extended 수수료가 10%를 넘을 일은 없으므로 그 이상은 단위 오류로 보고 거부한다.
@@ -20,10 +20,10 @@ const parseRate = (value: string | null | undefined) => {
  * 기본 수수료율에 빌더 수수료를 미리 더하지 않는다. 서명 금액에서만 SDK 방식대로 한 번 합산한다.
  */
 export async function checkBuilderFee(apiKey: string, market: string): Promise<FeeCheck> {
-  if (!BUILDER_ID) return { ok: false, market, reason: "빌더 ID가 설정되지 않았어요. (NEXT_PUBLIC_EXTENDED_BUILDER_ID)" };
+  if (BUILDER_ID === null) return { ok: false, market, reason: "빌더 ID는 숫자여야 해요. (NEXT_PUBLIC_EXTENDED_BUILDER_ID)" };
 
   const wanted = new BigNumber(BUILDER_FEE);
-  const rows = await getFees({ apiKey }, market, BUILDER_ID);
+  const rows = await getFees({ apiKey }, market, String(BUILDER_ID));
   const row = rows?.find((r) => r.market === market);
   if (!row) return { ok: false, market, reason: "수수료 응답에 해당 마켓이 없어요." };
 
